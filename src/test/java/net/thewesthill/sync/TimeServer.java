@@ -21,7 +21,7 @@ public class TimeServer {
             Socket socket = null;
             while (true) {
                 socket = serverSocket.accept();
-                new Thread(new TimeServerHandler(socket)).start();
+                new Thread(new TimeServerHandle(socket)).start();
             }
         } finally {
             if (serverSocket != null) {
@@ -31,11 +31,11 @@ public class TimeServer {
         }
     }
 
-    public static class TimeServerHandler implements Runnable {
+    public static class TimeServerHandle implements Runnable {
 
         private final Socket socket;
 
-        public TimeServerHandler(Socket socket) {
+        public TimeServerHandle(Socket socket) {
             this.socket = socket;
         }
 
