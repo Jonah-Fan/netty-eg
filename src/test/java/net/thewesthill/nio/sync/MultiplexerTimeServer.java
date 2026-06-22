@@ -48,7 +48,7 @@ public class MultiplexerTimeServer implements Runnable {
                 selector.select(1000);
                 Set<SelectionKey> selectionKeys = selector.selectedKeys();
                 Iterator<SelectionKey> it = selectionKeys.iterator();
-                SelectionKey key = null;
+                SelectionKey key;
                 while (it.hasNext()) {
                     key = it.next();
                     it.remove();

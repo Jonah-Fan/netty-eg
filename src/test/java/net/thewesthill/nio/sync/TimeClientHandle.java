@@ -52,7 +52,7 @@ public class TimeClientHandle implements Runnable {
                 selector.select(1000);
                 Set<SelectionKey> selectionKeys = selector.selectedKeys();
                 Iterator<SelectionKey> iter = selectionKeys.iterator();
-                SelectionKey key = null;
+                SelectionKey key;
                 while (iter.hasNext()) {
                     key = iter.next();
                     iter.remove();

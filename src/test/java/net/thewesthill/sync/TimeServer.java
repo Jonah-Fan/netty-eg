@@ -18,7 +18,7 @@ public class TimeServer {
         try {
             serverSocket = new ServerSocket(8080);
             log.info("The time server is start in port : " + 8080);
-            Socket socket = null;
+            Socket socket;
             while (true) {
                 socket = serverSocket.accept();
                 new Thread(new TimeServerHandle(socket)).start();
@@ -46,8 +46,8 @@ public class TimeServer {
             try {
                 in = new BufferedReader(new InputStreamReader(this.socket.getInputStream()));
                 out = new PrintWriter(this.socket.getOutputStream(), true);
-                String currentTime = null;
-                String body = null;
+                String currentTime;
+                String body;
                 while (true) {
                     body = in.readLine();
                     if (body == null) break;
