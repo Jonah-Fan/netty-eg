@@ -19,7 +19,7 @@ public class TimeServer {
         try {
             serverSocket = new ServerSocket(8080);
             log.info("The time server is start in port : " + 8080);
-            Socket socket = null;
+            Socket socket;
             TimeServerHandlerExecutePool singleExecutor = new TimeServerHandlerExecutePool(50, 10000);
             while (true) {
                 socket = serverSocket.accept();

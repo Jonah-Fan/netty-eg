@@ -50,14 +50,14 @@ public class AsyncTimeClientHandler implements CompletionHandler<Void, AsyncTime
         ByteBuffer writeBuffer = ByteBuffer.allocate(req.length);
         writeBuffer.put(req);
         writeBuffer.flip();
-        client.write(writeBuffer, writeBuffer, new CompletionHandler<Integer, ByteBuffer>() {
+        client.write(writeBuffer, writeBuffer, new CompletionHandler<>() {
             @Override
             public void completed(Integer result, ByteBuffer attachment) {
                 if (attachment.hasRemaining()) {
                     client.write(attachment, attachment, this);
                 } else {
                     ByteBuffer readBuffer = ByteBuffer.allocate(1024);
-                    client.read(readBuffer, readBuffer, new CompletionHandler<Integer, ByteBuffer>() {
+                    client.read(readBuffer, readBuffer, new CompletionHandler<>() {
                         @Override
                         public void completed(Integer result, ByteBuffer attachment) {
                             attachment.flip();
