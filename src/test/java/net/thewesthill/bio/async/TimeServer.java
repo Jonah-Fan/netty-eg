@@ -1,4 +1,4 @@
-package net.thewesthill.async;
+package net.thewesthill.bio.async;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -23,7 +23,7 @@ public class TimeServer {
             TimeServerHandlerExecutePool singleExecutor = new TimeServerHandlerExecutePool(50, 10000);
             while (true) {
                 socket = serverSocket.accept();
-                singleExecutor.execute(new net.thewesthill.sync.TimeServer.TimeServerHandle(socket));
+                singleExecutor.execute(new net.thewesthill.bio.sync.TimeServer.TimeServerHandle(socket));
             }
         } finally {
             if (serverSocket != null) {
