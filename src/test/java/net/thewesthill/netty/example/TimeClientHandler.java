@@ -1,4 +1,4 @@
-package net.thewesthill.netty;
+package net.thewesthill.netty.example;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;

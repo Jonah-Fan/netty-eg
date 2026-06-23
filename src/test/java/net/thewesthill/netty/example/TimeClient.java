@@ -1,4 +1,4 @@
-package net.thewesthill.netty;
+package net.thewesthill.netty.example;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
