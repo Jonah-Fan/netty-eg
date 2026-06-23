@@ -11,18 +11,17 @@ import java.nio.charset.StandardCharsets;
 @Slf4j
 public class ReadCompletionHandler implements CompletionHandler<Integer, ByteBuffer> {
 
-    private AsynchronousSocketChannel channel;
+    private final AsynchronousSocketChannel channel;
 
     public ReadCompletionHandler(AsynchronousSocketChannel channel) {
-        if (this.channel == null) {
-            this.channel = channel;
-        }
+        this.channel = channel;
     }
 
     @Override
     public void completed(Integer result, ByteBuffer attachment) {
         attachment.flip();
         byte[] body = new byte[attachment.remaining()];
+        attachment.get(body);
         String req = new String(body, StandardCharsets.UTF_8);
         log.info("The time server receive order : {}", req);
         String currentTime = "QUERY TIME ORDER".equalsIgnoreCase(req) ? new java.util.Date(System.currentTimeMillis()).toString() : "BAD ORDER";

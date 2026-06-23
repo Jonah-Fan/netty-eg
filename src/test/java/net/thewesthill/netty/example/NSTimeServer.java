@@ -5,8 +5,10 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.LineBasedFrameDecoder;
+import io.netty.handler.codec.string.StringDecoder;
 
-public class TimeServer {
+public class NSTimeServer {
 
     public static void main(String[] args) {
         int port = 8080;
@@ -17,7 +19,7 @@ public class TimeServer {
 
             }
         }
-        new TimeServer().bind(port);
+        new NSTimeServer().bind(port);
     }
 
     public void bind(int port) {
@@ -31,8 +33,12 @@ public class TimeServer {
                     .option(ChannelOption.SO_BACKLOG, 1024)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
-                        protected void initChannel(SocketChannel ch) {
-                            ch.pipeline().addLast(new StickingTimeServerHandler());
+                        protected void initChannel(SocketChannel socketChannel) throws Exception {
+                            socketChannel.pipeline()
+                                    .addLast(new LineBasedFrameDecoder(1024))
+                                    .addLast(new StringDecoder())
+                                    // sticking server.
+                                    .addLast(new StickingTimeServerHandler());
                         }
                     });
             ChannelFuture f = b.bind(port).syncUninterruptibly();
