@@ -9,20 +9,20 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class DelimiterEchoServerHandler extends ChannelInboundHandlerAdapter {
 
-    int counter;
+  int counter;
 
-    @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        String body = msg.toString();
-        log.info("This is {} time receive client : [{}]", ++counter, body);
-        body += "$_";
-        ByteBuf echo = Unpooled.copiedBuffer(body.getBytes());
-        ctx.writeAndFlush(echo);
-    }
+  @Override
+  public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    String body = msg.toString();
+    log.info("This is {} time receive client : [{}]", ++counter, body);
+    body += "$_";
+    ByteBuf echo = Unpooled.copiedBuffer(body.getBytes());
+    ctx.writeAndFlush(echo);
+  }
 
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        log.info(cause.getMessage());
-        ctx.close();
-    }
+  @Override
+  public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+    log.info(cause.getMessage());
+    ctx.close();
+  }
 }

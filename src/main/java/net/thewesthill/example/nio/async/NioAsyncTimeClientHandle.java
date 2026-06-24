@@ -1,17 +1,20 @@
 package net.thewesthill.example.nio.async;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 public class NioAsyncTimeClientHandle {
 
-    public static void main(String[] args) {
-        int port = 8080;
-        if (args != null && args.length > 0) {
-            try {
-                port = Integer.parseInt(args[0]);
-            } catch (NumberFormatException ignored) {
-
-            }
-        }
-        AsyncTimeServerHandler timeServer = new AsyncTimeServerHandler(port);
-        new Thread(timeServer, "AIO-AsyncTimeServerHandler-001").start();
+  public static void main(String[] args) {
+    int port = 8080;
+    if (args != null && args.length > 0) {
+      try {
+        port = Integer.parseInt(args[0]);
+      } catch (NumberFormatException e) {
+        log.info(e.getMessage());
+      }
     }
+    AsyncTimeServerHandler timeServer = new AsyncTimeServerHandler(port);
+    new Thread(timeServer, "AIO-AsyncTimeServerHandler-001").start();
+  }
 }

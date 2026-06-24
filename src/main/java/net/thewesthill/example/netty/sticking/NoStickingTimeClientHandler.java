@@ -1,26 +1,35 @@
-package net.thewesthill.example.netty.decoder;
+package net.thewesthill.example.netty.sticking;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class DelimiterEchoClientHandler extends ChannelInboundHandlerAdapter {
+public class NoStickingTimeClientHandler extends ChannelInboundHandlerAdapter {
 
-  static final String ECHO_REQ = "Hi, Jonah. Welcome to Netty.$_";
+  private final byte[] req;
   private int counter;
+
+  public NoStickingTimeClientHandler() {
+    req = ("QUERY TIME ORDER" + System.lineSeparator()).getBytes();
+  }
 
   @Override
   public void channelActive(ChannelHandlerContext ctx) throws Exception {
+    ByteBuf buf;
     for (int i = 0; i < 100; i++) {
-      ctx.writeAndFlush(Unpooled.copiedBuffer(ECHO_REQ.getBytes()));
+      buf = Unpooled.buffer(req.length);
+      buf.writeBytes(req);
+      ctx.writeAndFlush(buf);
     }
   }
 
   @Override
   public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-    log.info("This is {} times receive server : [{}]", ++counter, msg);
+    String body = msg.toString();
+    log.info("Nos is : {} ; the counter is : {}", body, ++counter);
   }
 
   @Override

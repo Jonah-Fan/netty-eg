@@ -1,4 +1,16 @@
 {
-  "java.checkstyle.configuration": "/google_checks.xml",
-  "java.configuration.updateBuildConfiguration": "disabled"
+  "[java]": {
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "redhat.java"
+  },
+  "java.checkstyle.configuration": "${workspaceFolder}\\.vscode\\google_checks.xml",
+  "java.configuration.updateBuildConfiguration": "disabled",
+  "java.checkstyle.version": "13.6.0",
+  "cSpell.words": [
+    "serv",
+    "thewesthill",
+    "Unpooled"
+  ],
 }
