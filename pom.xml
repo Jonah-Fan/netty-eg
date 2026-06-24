@@ -5,10 +5,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>net.thewesthill</groupId>
-    <artifactId>netty-demo</artifactId>
+    <artifactId>netty-eg</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>netty-demo</name>
-    <description>netty-demo</description>
+    <name>netty-eg</name>
+    <description>netty-eg</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
