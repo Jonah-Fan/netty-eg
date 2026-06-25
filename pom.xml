@@ -19,7 +19,7 @@
         <slf4j.version>2.0.13</slf4j.version>
         <logback.version>1.5.6</logback.version>
         <msgpack.version>0.9.12</msgpack.version>
-        <jsckson-msgpack.version>0.9.12</jsckson-msgpack.version>
+        <jackson-msgpack.version>0.9.12</jackson-msgpack.version>
     </properties>
 
     <dependencyManagement>
@@ -68,7 +68,7 @@
         <dependency>
             <groupId>org.msgpack</groupId>
             <artifactId>jackson-dataformat-msgpack</artifactId>
-            <version>${jsckson-msgpack.version}</version>
+            <version>${jackson-msgpack.version}</version>
         </dependency>
     </dependencies>
 
