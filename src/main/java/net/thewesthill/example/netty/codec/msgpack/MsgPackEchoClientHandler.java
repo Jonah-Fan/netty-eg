@@ -3,7 +3,6 @@ package net.thewesthill.example.netty.codec.msgpack;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.extern.slf4j.Slf4j;
-
 import net.thewesthill.example.netty.codec.UserInfo;
 
 @Slf4j
@@ -26,8 +25,8 @@ public class MsgPackEchoClientHandler extends ChannelInboundHandlerAdapter {
 
   @Override
   public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-    log.info("Client receive the msgpack message : {}", msg);
-    ctx.write(msg);
+    UserInfo info = (UserInfo) msg;
+    log.info("Client receive the msgpack message : {}", info.getUserName());
   }
 
   @Override
@@ -37,7 +36,6 @@ public class MsgPackEchoClientHandler extends ChannelInboundHandlerAdapter {
 
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-    log.info(cause.getMessage());
     ctx.close();
   }
 
@@ -45,7 +43,7 @@ public class MsgPackEchoClientHandler extends ChannelInboundHandlerAdapter {
     UserInfo[] infos = new UserInfo[sendNumber];
     UserInfo userInfo = null;
     for (int i = 0; i < sendNumber; i++) {
-      userInfo = new UserInfo().buildUserName("ABCDEFG --->" + i);
+      userInfo = new UserInfo().buildUserName("ABCDEFG ---> " + i);
       infos[i] = userInfo;
     }
     return infos;

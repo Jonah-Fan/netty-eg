@@ -1,20 +1,28 @@
 package net.thewesthill.example.netty.codec.msgpack;
 
 import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.codec.LengthFieldPrepender;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class MsgPackEchoClient {
+
+  private final String host;
+  private final int port;
+  private final int sendNumber;
+
+  public MsgPackEchoClient(String host, int port, int sendNumber) {
+    this.host = host;
+    this.port = port;
+    this.sendNumber = sendNumber;
+  }
 
   public static void main(String[] args) {
     int port = 8080;
@@ -25,17 +33,7 @@ public class MsgPackEchoClient {
         log.info(e.getMessage());
       }
     }
-    new MsgPackEchoClient("127.0.0.1", port, 1000).run();
-  }
-
-  private final String host;
-  private final int port;
-  private final int sendNumber;
-
-  public MsgPackEchoClient(String host, int port, int sendNumber) {
-    this.host = host;
-    this.port = port;
-    this.sendNumber = sendNumber;
+    new MsgPackEchoClient("127.0.0.1", port, 100).run();
   }
 
   public void run() {
@@ -50,14 +48,19 @@ public class MsgPackEchoClient {
           .handler(new ChannelInitializer<SocketChannel>() {
             @Override
             public void initChannel(SocketChannel ch) throws Exception {
-              ch.pipeline().addLast("msgPack decoder", new MsgPackDecoder())
-                  .addLast("msgPack encoder", new MsgPackEncoder())
+              ch.pipeline()
+                  // process frame decoder in bound.
+                  .addLast("frame decoder", new LengthFieldBasedFrameDecoder(65535, 0, 2, 0, 2))
+                  .addLast("msgpack decoder", new MsgPackDecoder())
+                  // process frame encoder out bound.
+                  .addLast("frame encoder", new LengthFieldPrepender(2))
+                  .addLast("msgpack encoder", new MsgPackEncoder())
                   // sendNumber is loop count.
                   .addLast(new MsgPackEchoClientHandler(sendNumber));
             }
           });
       ChannelFuture f = b.connect(host, port).syncUninterruptibly();
-      f.channel().close().syncUninterruptibly();
+      f.channel().closeFuture().syncUninterruptibly();
     } finally {
       group.shutdownGracefully().syncUninterruptibly();
     }

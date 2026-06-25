@@ -18,7 +18,8 @@
         <lombok.version>1.18.38</lombok.version>
         <slf4j.version>2.0.13</slf4j.version>
         <logback.version>1.5.6</logback.version>
-        <msgpack.version>0.6.12</msgpack.version>
+        <msgpack.version>0.9.12</msgpack.version>
+        <jsckson-msgpack.version>0.9.12</jsckson-msgpack.version>
     </properties>
 
     <dependencyManagement>
@@ -60,8 +61,14 @@
 
         <dependency>
             <groupId>org.msgpack</groupId>
-            <artifactId>msgpack</artifactId>
+            <artifactId>msgpack-core</artifactId>
             <version>${msgpack.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.msgpack</groupId>
+            <artifactId>jackson-dataformat-msgpack</artifactId>
+            <version>${jsckson-msgpack.version}</version>
         </dependency>
     </dependencies>
 

@@ -1,17 +1,19 @@
 package net.thewesthill.example.netty.codec.msgpack;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
-import org.msgpack.MessagePack;
+import net.thewesthill.example.netty.codec.UserInfo;
+import org.msgpack.jackson.dataformat.MessagePackFactory;
 
-public class MsgPackEncoder extends MessageToByteEncoder<Object> {
+public class MsgPackEncoder extends MessageToByteEncoder<UserInfo> {
+
+  private final ObjectMapper objectMapper = new ObjectMapper(new MessagePackFactory());
 
   @Override
-  protected void encode(ChannelHandlerContext arg0, Object arg1, ByteBuf arg2) throws Exception {
-    MessagePack msgPack = new MessagePack();
-    // Serialize arg[0].msg
-    byte[] raw = msgPack.write(arg1);
+  protected void encode(ChannelHandlerContext arg0, UserInfo arg1, ByteBuf arg2) throws Exception {
+    byte[] raw = objectMapper.writeValueAsBytes(arg1);
     arg2.writeBytes(raw);
   }
 }
