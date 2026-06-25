@@ -32,11 +32,13 @@ end-to-end and run with a single command.
     - [Netty basics](#netty-basics)
     - [TCP sticking and half-packet](#tcp-sticking-and-half-packet)
     - [Netty decoders](#netty-decoders)
+    - [MessagePack codec](#messagepack-codec)
 - [Asking questions and reporting issues](#asking-questions-and-reporting-issues)
 - [Contributing](#contributing)
 - [Additional resources](#additional-resources)
 - [Changelog](#changelog)
 - [License](#license)
+- [Contact](#contact)
 
 # How it works
 
@@ -53,6 +55,9 @@ The examples are intentionally ordered so that each layer addresses a shortcomin
    then fixes it with `LineBasedFrameDecoder`.
 5. **Netty decoders** — production-grade solutions to framing: `DelimiterBasedFrameDecoder` (split on `$_`) and
    `FixedLengthFrameDecoder` (fixed 20-byte frames).
+6. **MessagePack codec** — a binary object codec built on `jackson-dataformat-msgpack`. A `LengthFieldPrepender`
+   frames each serialized `UserInfo` on the wire and a `LengthFieldBasedFrameDecoder` reassembles it on the other
+   side, so the msgpack encoder/decoder pair never sees a partial read.
 
 # Project structure
 
@@ -67,7 +72,8 @@ src/main/java/net/thewesthill/example/
 └── netty/
     ├── eg/         # Basic Netty time server + client
     ├── sticking/  # TCP sticking/half-packet demo with LineBasedFrameDecoder
-    └── decoder/    # Delimiter- and fixed-length frame decoders
+    ├── decoder/    # Delimiter- and fixed-length frame decoders
+    └── codec/      # MessagePack codec demo (LengthFieldPrepender + MsgPack encoder/decoder)
 ```
 
 # Prerequisites
@@ -156,6 +162,22 @@ Run any example with `exec:java`:
 | `net.thewesthill.example.netty.decoder.DelimiterEchoClient`   | Matching echo client                        |
 | `net.thewesthill.example.netty.decoder.FixedLengthEchoServer` | Echo server with fixed 20-byte frames       |
 
+## MessagePack codec
+
+An echo server/client pair that serializes `UserInfo` with MessagePack and frames it with a 2-byte length prefix
+so the decoder always receives a complete message.
+
+| Class                                                             | Role                                                       |
+|-------------------------------------------------------------------|------------------------------------------------------------|
+| `net.thewesthill.example.netty.codec.msgpack.MsgPackEchoServer`   | Echo server with `LengthFieldBasedFrameDecoder` + msgpack  |
+| `net.thewesthill.example.netty.codec.msgpack.MsgPackEchoClient`   | Matching client; sends N `UserInfo` objects on connect    |
+
+```bash
+./mvnw exec:java -Dexec.mainClass=net.thewesthill.example.netty.codec.msgpack.MsgPackEchoServer
+# in another shell
+./mvnw exec:java -Dexec.mainClass=net.thewesthill.example.netty.codec.msgpack.MsgPackEchoClient
+```
+
 # Asking questions and reporting issues
 
 Use the [GitHub Issues](https://github.com/Jonah-Fan/netty-eg/issues) tracker for bug reports, suggestions, or questions
@@ -187,3 +209,14 @@ the [commit history](https://github.com/Jonah-Fan/netty-eg/commits/master) for t
 No license has been declared for this repository yet. Until one is added, default copyright terms apply and the source
 is shared here for study purposes only. If you intend to reuse the code, please open an issue to discuss licensing
 first.
+
+# Contact
+
+| | |
+| :-- | :-- |
+| **Name**  | Jonah Fan                |
+| **Email** | <jonah-fan@outlook.com>  |
+
+For project-related discussions, please prefer the
+[GitHub Issues](https://github.com/Jonah-Fan/netty-eg/issues) tracker; use email for off-thread or private
+inquiries.
