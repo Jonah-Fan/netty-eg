@@ -1,13 +1,14 @@
 package net.thewesthill.example.netty.codec.msgpack;
 
+import java.util.List;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
-import net.thewesthill.example.netty.codec.UserInfo;
 import org.msgpack.jackson.dataformat.MessagePackFactory;
 
-import java.util.List;
+import net.thewesthill.example.netty.codec.UserInfo;
 
 public class MsgPackDecoder extends MessageToMessageDecoder<ByteBuf> {
 

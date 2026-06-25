@@ -3,6 +3,7 @@ package net.thewesthill.example.netty.codec.msgpack;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.extern.slf4j.Slf4j;
+
 import net.thewesthill.example.netty.codec.UserInfo;
 
 @Slf4j

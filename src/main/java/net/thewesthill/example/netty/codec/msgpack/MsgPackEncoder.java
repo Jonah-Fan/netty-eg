@@ -4,8 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
-import net.thewesthill.example.netty.codec.UserInfo;
 import org.msgpack.jackson.dataformat.MessagePackFactory;
+
+import net.thewesthill.example.netty.codec.UserInfo;
 
 public class MsgPackEncoder extends MessageToByteEncoder<UserInfo> {
 
