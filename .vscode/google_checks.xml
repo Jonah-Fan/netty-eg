@@ -344,7 +344,7 @@
         <property name="sortImportsInGroupAlphabetically" value="true"/>
         <property name="separateLineBetweenGroups" value="true"/>
         <property name="customImportOrderRules" 
-                  value="STATIC###STANDARD_JAVA_PACKAGE###THIRD_PARTY_PACKAGE###SAME_PACKAGE(3)"/>
+                  value="STATIC###STANDARD_JAVA_PACKAGE###THIRD_PARTY_PACKAGE###SAME_PACKAGE(2)"/>
     </module>
     <module name="MethodParamPad">
       <property name="tokens"

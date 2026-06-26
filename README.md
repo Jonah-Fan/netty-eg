@@ -8,8 +8,9 @@
 [![Maven](https://img.shields.io/badge/Maven-3.9%2B-C71A36?logo=apachemaven&logoColor=white)](https://maven.apache.org/)
 
 **netty-eg** is a small, hands-on study project that walks through Java network programming from raw blocking I/O,
-through native NIO, up to [Netty](https://netty.io/) — including the TCP sticking / half-packet problem and the codec (
-decoder) patterns Netty provides to solve it.
+through native NIO and JDK AIO, up to [Netty](https://netty.io/) — including the TCP sticking / half-packet problem,
+the frame decoders Netty provides to solve it, and several binary codecs (MessagePack, Protobuf, JBoss Marshalling)
+on top.
 
 The repository is a learning aid, not a production framework. Each example is a self-contained `main` class you can read
 end-to-end and run with a single command.
@@ -28,11 +29,17 @@ end-to-end and run with a single command.
 - [Building from source](#building-from-source)
 - [Running the examples](#running-the-examples)
     - [Blocking I/O (BIO)](#blocking-io-bio)
+    - [Pseudo-async I/O (PIO)](#pseudo-async-io-pio)
     - [Non-blocking I/O (NIO)](#non-blocking-io-nio)
+    - [Asynchronous I/O (AIO)](#asynchronous-io-aio)
     - [Netty basics](#netty-basics)
     - [TCP sticking and half-packet](#tcp-sticking-and-half-packet)
-    - [Netty decoders](#netty-decoders)
+    - [Frame decoders](#frame-decoders)
     - [MessagePack codec](#messagepack-codec)
+    - [Protobuf codec](#protobuf-codec)
+    - [JBoss Marshalling codec](#jboss-marshalling-codec)
+    - [JDK serialization benchmark](#jdk-serialization-benchmark)
+    - [HTTP file server](#http-file-server)
 - [Asking questions and reporting issues](#asking-questions-and-reporting-issues)
 - [Contributing](#contributing)
 - [Additional resources](#additional-resources)
@@ -46,34 +53,49 @@ The examples are intentionally ordered so that each layer addresses a shortcomin
 
 1. **BIO** — one-thread-per-connection servers. Easy to understand, but does not scale: each client holds a thread for
    the lifetime of the connection.
-2. **NIO** — a single multiplexed thread handles many connections via `Selector`. Better scalability, but the code is
-   verbose and easy to get wrong. The async variant demonstrates JDK AIO (`CompletionHandler`).
-3. **Netty basics** — the same time server/client reimplemented on top of Netty's `EventLoopGroup` + `ChannelPipeline`.
+2. **PIO** — the same BIO server with a bounded thread pool in front of `accept()`. Reuses threads across connections
+   but still blocks on each socket read.
+3. **NIO** — a single multiplexed thread handles many connections via `Selector`. Better scalability, but the code is
+   verbose and easy to get wrong.
+4. **AIO** — JDK asynchronous channel API driven by `CompletionHandler` callbacks. Truly non-blocking on platforms
+   that support it.
+5. **Netty basics** — the same time server/client reimplemented on top of Netty's `EventLoopGroup` + `ChannelPipeline`.
    The boilerplate collapses; the intent of the code becomes readable.
-4. **TCP sticking / half-packet** — when clients stream many small writes, TCP may coalesce them (sticking) or split a
-   single logical message across segments (half-packet). The example shows a server that misbehaves without a decoder,
-   then fixes it with `LineBasedFrameDecoder`.
-5. **Netty decoders** — production-grade solutions to framing: `DelimiterBasedFrameDecoder` (split on `$_`) and
+6. **TCP sticking / half-packet** — when clients stream many small writes, TCP may coalesce them (sticking) or split a
+   single logical message across segments (half-packet). The `frame/fault` handlers read raw `ByteBuf` and exhibit the
+   problem; `frame/correct` prepends a `LineBasedFrameDecoder` to fix it.
+7. **Frame decoders** — production-grade solutions to framing: `DelimiterBasedFrameDecoder` (split on `$_`) and
    `FixedLengthFrameDecoder` (fixed 20-byte frames).
-6. **MessagePack codec** — a binary object codec built on `jackson-dataformat-msgpack`. A `LengthFieldPrepender`
-   frames each serialized `UserInfo` on the wire and a `LengthFieldBasedFrameDecoder` reassembles it on the other
-   side, so the msgpack encoder/decoder pair never sees a partial read.
+8. **Codecs** — binary object serialization on top of a length-prefixed frame:
+    - **MessagePack** — `jackson-dataformat-msgpack` with `LengthFieldPrepender` + `LengthFieldBasedFrameDecoder`.
+    - **Protobuf** — `ProtobufEncoder`/`ProtobufDecoder` with `ProtobufVarint32LengthFieldPrepender`/
+      `ProtobufVarint32FrameDecoder`.
+    - **JBoss Marshalling** — `MarshallingEncoder`/`MarshallingDecoder` built on the `serial` provider.
+9. **Protocol** — an (in-progress) HTTP file server skeleton showing how to stack `HttpRequestDecoder` +
+   `HttpObjectAggregator` + `ChunkedWriteHandler`.
 
 # Project structure
 
 ```
-src/main/java/net/thewesthill/example/
-├── bio/
-│   ├── sync/      # Blocking I/O time server + client
-│   └── async/    # Pseudo-async BIO (thread pool) time server
-├── nio/
-│   ├── sync/     # JDK NIO multiplexer time server + client
-│   └── async/    # JDK AIO (CompletionHandler) time server + client
-└── netty/
-    ├── eg/         # Basic Netty time server + client
-    ├── sticking/  # TCP sticking/half-packet demo with LineBasedFrameDecoder
-    ├── decoder/    # Delimiter- and fixed-length frame decoders
-    └── codec/      # MessagePack codec demo (LengthFieldPrepender + MsgPack encoder/decoder)
+src/main/java/net/thewesthill/
+├── bio/              # Blocking I/O time server + client
+├── pio/              # Pseudo-async BIO (thread pool) time server
+├── nio/              # JDK NIO multiplexer time server + client
+├── aio/              # JDK AIO (CompletionHandler) time server + client
+├── basic/            # Basic Netty time server + client
+├── frame/
+│   ├── fault/          # Raw-ByteBuf handlers that exhibit TCP sticking
+│   ├── correct/        # Same handlers behind a LineBasedFrameDecoder
+│   ├── delimiter/      # DelimiterBasedFrameDecoder ($_ delimiter) echo
+│   └── fixedlen/       # FixedLengthFrameDecoder (20-byte frames) echo
+├── codec/
+│   ├── msgpack/        # MessagePack codec with length-field framing
+│   ├── protobuf/       # Protobuf codec with Varint32 length framing
+│   ├── marshalling/    # JBoss Marshalling (serial provider) codec
+│   ├── pojo/           # Generated protobuf message classes
+│   └── serializable/   # JDK Serializable vs. hand-rolled byte buffer
+└── protocol/
+    └── http/           # HTTP file server skeleton (work in progress)
 ```
 
 # Prerequisites
@@ -103,8 +125,8 @@ To compile without running tests:
 
 # Running the examples
 
-Every example is a standalone `main` class. All server examples accept an optional port argument (default `8080`);
-client examples target `127.0.0.1:8080` unless noted.
+Every example is a standalone `main` class. Most servers accept an optional port argument (default `8080`); a few
+hardcode `8080` for brevity. Clients target `127.0.0.1:8080` unless noted.
 
 Run any example with `exec:java`:
 
@@ -114,69 +136,145 @@ Run any example with `exec:java`:
 
 ## Blocking I/O (BIO)
 
-| Class                                                  | Role                                  |
-|--------------------------------------------------------|---------------------------------------|
-| `net.thewesthill.example.bio.sync.BioSyncTimeServer`   | Synchronous blocking time server      |
-| `net.thewesthill.example.bio.sync.BioSyncTimeClient`   | Matching blocking client              |
-| `net.thewesthill.example.bio.async.BioAsyncTimeServer` | Pseudo-async BIO server (thread pool) |
+| Class                            | Role                              |
+|----------------------------------|-----------------------------------|
+| `net.thewesthill.bio.TimeServer` | Synchronous blocking time server  |
+| `net.thewesthill.bio.TimeClient` | Matching blocking client          |
 
 ```bash
-./mvnw exec:java -Dexec.mainClass=net.thewesthill.example.bio.sync.BioSyncTimeServer
+./mvnw exec:java -Dexec.mainClass=net.thewesthill.bio.TimeServer
 # in another shell
-./mvnw exec:java -Dexec.mainClass=net.thewesthill.example.bio.sync.BioSyncTimeClient
+./mvnw exec:java -Dexec.mainClass=net.thewesthill.bio.TimeClient
 ```
+
+## Pseudo-async I/O (PIO)
+
+The BIO accept loop dispatching into a bounded `ThreadPoolExecutor` instead of spawning a thread per connection.
+Reuses the `bio.TimeServer.TimeServerHandle` runnable.
+
+| Class                            | Role                                          |
+|----------------------------------|-----------------------------------------------|
+| `net.thewesthill.pio.TimeServer` | BIO server backed by a `ThreadPoolExecutor` |
 
 ## Non-blocking I/O (NIO)
 
-| Class                                                        | Role                            |
-|--------------------------------------------------------------|---------------------------------|
-| `net.thewesthill.example.nio.sync.NioSyncTimeServer`         | Multiplexed NIO time server     |
-| `net.thewesthill.example.nio.sync.NioSyncTimeClient`         | Matching NIO client             |
-| `net.thewesthill.example.nio.async.NioAsyncTimeClient`       | JDK AIO client                  |
-| `net.thewesthill.example.nio.async.NioAsyncTimeClientHandle` | AIO client handler (has `main`) |
+| Class                                     | Role                                   |
+|-------------------------------------------|----------------------------------------|
+| `net.thewesthill.nio.TimeServer`          | Multiplexed NIO time server (entry)    |
+| `net.thewesthill.nio.MultiplexerTimeServer` | `Selector` loop handling accept/read |
+| `net.thewesthill.nio.TimeClient`          | Matching NIO client                    |
+
+## Asynchronous I/O (AIO)
+
+JDK `AsynchronousServerSocketChannel` driven by `CompletionHandler` callbacks for accept and read.
+
+| Class                                     | Role                                  |
+|-------------------------------------------|---------------------------------------|
+| `net.thewesthill.aio.TimeServer`          | AIO time server (entry)               |
+| `net.thewesthill.aio.AsyncTimeServerHandler` | Accept loop + `AcceptCompletionHandler` |
+| `net.thewesthill.aio.TimeClient`          | AIO client (entry)                    |
+| `net.thewesthill.aio.AsyncTimeClientHandler` | Connect + `ReadCompletionHandler`     |
 
 ## Netty basics
 
-| Class                                              | Role                    |
-|----------------------------------------------------|-------------------------|
-| `net.thewesthill.example.netty.eg.NettyTimeServer` | Basic Netty time server |
-| `net.thewesthill.example.netty.eg.NettyTimeClient` | Basic Netty time client |
+| Class                              | Role                    |
+|------------------------------------|-------------------------|
+| `net.thewesthill.basic.TimeServer` | Basic Netty time server |
+| `net.thewesthill.basic.TimeClient` | Basic Netty time client |
 
 ```bash
-./mvnw exec:java -Dexec.mainClass=net.thewesthill.example.netty.eg.NettyTimeServer
-./mvnw exec:java -Dexec.mainClass=net.thewesthill.example.netty.eg.NettyTimeClient
+./mvnw exec:java -Dexec.mainClass=net.thewesthill.basic.TimeServer
+./mvnw exec:java -Dexec.mainClass=net.thewesthill.basic.TimeClient
 ```
 
 ## TCP sticking and half-packet
 
-| Class                                                 | Role                                      |
-|-------------------------------------------------------|-------------------------------------------|
-| `net.thewesthill.example.netty.sticking.NSTimeServer` | Server with `LineBasedFrameDecoder(1024)` |
-| `net.thewesthill.example.netty.sticking.NSTimeClient` | Client that triggers sticking behavior    |
+The client fires 100 `QUERY TIME ORDER` messages on channel active. Without a frame decoder the server sees them
+coalesced into fewer reads; with `LineBasedFrameDecoder(1024)` each line is delivered as a separate `ByteBuf`.
 
-## Netty decoders
+| Class                                     | Role                                              |
+|-------------------------------------------|---------------------------------------------------|
+| `net.thewesthill.frame.fault.TimeServerHandler` | Reads raw `ByteBuf`; exhibits sticking behavior |
+| `net.thewesthill.frame.fault.TimeClientHandler` | Sends 100 messages to trigger sticking          |
+| `net.thewesthill.frame.correct.TimeServer` | Same handler behind `LineBasedFrameDecoder(1024)` |
+| `net.thewesthill.frame.correct.TimeClient` | Adds `LineBasedFrameDecoder` + `StringDecoder`   |
 
-| Class                                                         | Role                                        |
-|---------------------------------------------------------------|---------------------------------------------|
-| `net.thewesthill.example.netty.decoder.DelimiterEchoServer`   | Echo server splitting on the `$_` delimiter |
-| `net.thewesthill.example.netty.decoder.DelimiterEchoClient`   | Matching echo client                        |
-| `net.thewesthill.example.netty.decoder.FixedLengthEchoServer` | Echo server with fixed 20-byte frames       |
+To see the fault behavior, comment out the `LineBasedFrameDecoder` line in `frame.correct.TimeServer` / `TimeClient`
+and rerun.
+
+## Frame decoders
+
+| Class                                          | Role                                         |
+|------------------------------------------------|----------------------------------------------|
+| `net.thewesthill.frame.delimiter.EchoServer`  | Echo server splitting on the `$_` delimiter |
+| `net.thewesthill.frame.delimiter.EchoClient`  | Matching echo client                         |
+| `net.thewesthill.frame.fixedlen.EchoServer`   | Echo server with fixed 20-byte frames        |
 
 ## MessagePack codec
 
 An echo server/client pair that serializes `UserInfo` with MessagePack and frames it with a 2-byte length prefix
 so the decoder always receives a complete message.
 
-| Class                                                             | Role                                                       |
-|-------------------------------------------------------------------|------------------------------------------------------------|
-| `net.thewesthill.example.netty.codec.msgpack.MsgPackEchoServer`   | Echo server with `LengthFieldBasedFrameDecoder` + msgpack  |
-| `net.thewesthill.example.netty.codec.msgpack.MsgPackEchoClient`   | Matching client; sends N `UserInfo` objects on connect    |
+| Class                                       | Role                                                       |
+|---------------------------------------------|------------------------------------------------------------|
+| `net.thewesthill.codec.msgpack.EchoServer`  | Echo server with `LengthFieldBasedFrameDecoder` + msgpack  |
+| `net.thewesthill.codec.msgpack.EchoClient`  | Matching client; sends N `UserInfo` objects on connect    |
 
 ```bash
-./mvnw exec:java -Dexec.mainClass=net.thewesthill.example.netty.codec.msgpack.MsgPackEchoServer
+./mvnw exec:java -Dexec.mainClass=net.thewesthill.codec.msgpack.EchoServer
 # in another shell
-./mvnw exec:java -Dexec.mainClass=net.thewesthill.example.netty.codec.msgpack.MsgPackEchoClient
+./mvnw exec:java -Dexec.mainClass=net.thewesthill.codec.msgpack.EchoClient
 ```
+
+## Protobuf codec
+
+A subscribe-request server/client pair using `SubscribeReqProto.SubscribeReq` /
+`SubscribeRespProto.SubscribeResp` (generated classes live under `codec.pojo`). Varint32 length framing keeps each
+protobuf message self-delimited on the wire.
+
+| Class                                              | Role                                            |
+|----------------------------------------------------|-------------------------------------------------|
+| `net.thewesthill.codec.protobuf.SubReqServer`     | Server with `ProtobufVarint32FrameDecoder` etc. |
+| `net.thewesthill.codec.protobuf.SubReqClient`     | Matching client                                 |
+| `net.thewesthill.codec.protobuf.TestSubscribeReqProto` | Standalone encode/decode round-trip test  |
+
+```bash
+./mvnw exec:java -Dexec.mainClass=net.thewesthill.codec.protobuf.SubReqServer
+# in another shell
+./mvnw exec:java -Dexec.mainClass=net.thewesthill.codec.protobuf.SubReqClient
+```
+
+## JBoss Marshalling codec
+
+Same subscribe-request flow as the protobuf example, but with JBoss Marshalling (`serial` provider, version 5) in
+place of the protobuf encoder/decoder. Reuses the protobuf handlers since `SubscribeReq` is a regular `Serializable`
+Java object.
+
+| Class                                                | Role                                                |
+|------------------------------------------------------|-----------------------------------------------------|
+| `net.thewesthill.codec.marshalling.SubReqServer`    | Server with `MarshallingDecoder`/`MarshallingEncoder` |
+| `net.thewesthill.codec.marshalling.SubReqClient`    | Matching client                                     |
+| `net.thewesthill.codec.marshalling.MarshallingCodecFactory` | Builds the encoder/decoder from the `serial` factory |
+
+## JDK serialization benchmark
+
+Two standalone `main` classes comparing JDK `ObjectOutputStream` against a hand-rolled `ByteBuffer` codec on the
+same `UserInfo` POJO. `PerformTestUserInfo` loops 1,000,000 times to measure throughput.
+
+| Class                                              | Role                                              |
+|----------------------------------------------------|---------------------------------------------------|
+| `net.thewesthill.codec.serializable.TestUserInfo`     | One-shot size comparison                      |
+| `net.thewesthill.codec.serializable.PerformTestUserInfo` | 1M-iteration timing benchmark               |
+
+## HTTP file server
+
+A scaffold stacking `HttpRequestDecoder` + `HttpObjectAggregator` + `HttpResponseEncoder` + `ChunkedWriteHandler`.
+The handler is a stub — file listing and serving are not implemented yet, so this example is not runnable as-is.
+
+| Class                                          | Role                          |
+|------------------------------------------------|-------------------------------|
+| `net.thewesthill.protocol.http.HttpFileServer` | HTTP file server skeleton     |
+| `net.thewesthill.protocol.http.HttpFileServerHandler` | Stub handler (TODO)    |
 
 # Asking questions and reporting issues
 
