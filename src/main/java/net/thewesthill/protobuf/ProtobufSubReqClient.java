@@ -14,7 +14,7 @@ import io.netty.handler.codec.protobuf.ProtobufEncoder;
 import io.netty.handler.codec.protobuf.ProtobufVarint32FrameDecoder;
 import io.netty.handler.codec.protobuf.ProtobufVarint32LengthFieldPrepender;
 
-public class SubReqClient {
+public class ProtobufSubReqClient {
 
   public static void main(String[] args) {
     int port = 8080;
@@ -25,7 +25,7 @@ public class SubReqClient {
         e.printStackTrace();
       }
     }
-    new SubReqClient().connect("127.0.0.1", port);
+    new ProtobufSubReqClient().connect("127.0.0.1", port);
   }
 
   public void connect(String host, int port) {
@@ -33,20 +33,23 @@ public class SubReqClient {
 
     try {
       Bootstrap b = new Bootstrap();
-      b.group(group).channel(NioSocketChannel.class)
+      b.group(group)
+          .channel(NioSocketChannel.class)
           .option(ChannelOption.TCP_NODELAY, true)
-          .handler(new ChannelInitializer<SocketChannel>() {
-            @Override
-            protected void initChannel(SocketChannel ch) throws Exception {
-              ch.pipeline()
-                  .addLast(new ProtobufVarint32FrameDecoder())
-                  .addLast(new ProtobufDecoder(SubscribeRespProto.SubscribeResp
-                      .getDefaultInstance()))
-                  .addLast(new ProtobufVarint32LengthFieldPrepender())
-                  .addLast(new ProtobufEncoder())
-                  .addLast(new SubReqClientHandler());
-            }
-          });
+          .handler(
+              new ChannelInitializer<SocketChannel>() {
+                @Override
+                protected void initChannel(SocketChannel ch) throws Exception {
+                  ch.pipeline()
+                      .addLast(new ProtobufVarint32FrameDecoder())
+                      .addLast(
+                          new ProtobufDecoder(
+                              SubscribeRespProto.SubscribeResp.getDefaultInstance()))
+                      .addLast(new ProtobufVarint32LengthFieldPrepender())
+                      .addLast(new ProtobufEncoder())
+                      .addLast(new SubReqClientHandler());
+                }
+              });
       ChannelFuture f = b.connect(host, port).syncUninterruptibly();
       f.channel().closeFuture().syncUninterruptibly();
     } finally {

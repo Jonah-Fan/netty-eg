@@ -27,12 +27,11 @@ public class SubReqServerHandler extends ChannelInboundHandlerAdapter {
   }
 
   private SubscribeRespProto.SubscribeResp resp(int subReqId) {
-    SubscribeRespProto.SubscribeResp.Builder builder = SubscribeRespProto.SubscribeResp
-        .newBuilder();
+    SubscribeRespProto.SubscribeResp.Builder builder =
+        SubscribeRespProto.SubscribeResp.newBuilder();
     builder.setSubReqID(subReqId);
     builder.setRespCode(0);
     builder.setDesc("Netty book order succeed, 3 days later, send to the designated address");
     return builder.build();
   }
-
 }

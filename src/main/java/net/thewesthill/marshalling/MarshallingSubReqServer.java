@@ -1,4 +1,4 @@
-package net.thewesthill.protobuf;
+package net.thewesthill.marshalling;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
@@ -9,14 +9,11 @@ import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.protobuf.ProtobufDecoder;
-import io.netty.handler.codec.protobuf.ProtobufEncoder;
-import io.netty.handler.codec.protobuf.ProtobufVarint32FrameDecoder;
-import io.netty.handler.codec.protobuf.ProtobufVarint32LengthFieldPrepender;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import net.thewesthill.protobuf.SubReqServerHandler;
 
-public class SubReqServer {
+public class MarshallingSubReqServer {
 
   public static void main(String[] args) {
     int port = 8080;
@@ -27,7 +24,7 @@ public class SubReqServer {
         e.printStackTrace();
       }
     }
-    new SubReqServer().bind(port);
+    new MarshallingSubReqServer().bind(port);
   }
 
   public void bind(int port) {
@@ -43,12 +40,9 @@ public class SubReqServer {
             @Override
             protected void initChannel(SocketChannel ch) throws Exception {
               ch.pipeline()
-                  .addLast(new ProtobufVarint32FrameDecoder())
-                  .addLast(new ProtobufDecoder(SubscribeReqProto.SubscribeReq.getDefaultInstance()))
-                  .addLast(new ProtobufVarint32LengthFieldPrepender())
-                  .addLast(new ProtobufEncoder())
+                  .addLast(MarshallingCodecFactory.buildMarshallingDecoder())
+                  .addLast(MarshallingCodecFactory.buildMarshallingEncoder())
                   .addLast(new SubReqServerHandler());
-
             }
           });
       ChannelFuture f = b.bind(port).syncUninterruptibly();

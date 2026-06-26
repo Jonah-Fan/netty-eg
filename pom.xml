@@ -6,7 +6,7 @@
 
     <groupId>net.thewesthill</groupId>
     <artifactId>netty-eg</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
     <name>netty-eg</name>
     <description>netty-eg</description>
 
@@ -21,6 +21,9 @@
         <msgpack.version>0.9.12</msgpack.version>
         <jackson-msgpack.version>0.9.12</jackson-msgpack.version>
         <protobuf-java.version>4.35.1</protobuf-java.version>
+        <marshalling.version>2.2.3.Final</marshalling.version>
+        <marshalling-river.version>2.2.3.Final</marshalling-river.version>
+        <marshalling-serial.version>2.2.3.Final</marshalling-serial.version>
     </properties>
 
     <dependencyManagement>
@@ -76,6 +79,24 @@
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
             <version>${protobuf-java.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.marshalling</groupId>
+            <artifactId>jboss-marshalling</artifactId>
+            <version>${marshalling.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.marshalling</groupId>
+            <artifactId>jboss-marshalling-river</artifactId>
+            <version>${marshalling-river.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.marshalling</groupId>
+            <artifactId>jboss-marshalling-serial</artifactId>
+            <version>${marshalling-serial.version}</version>
         </dependency>
     </dependencies>
 

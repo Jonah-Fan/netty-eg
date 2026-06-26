@@ -1,0 +1,17 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Format Java",
+            "type": "shell",
+            "command": "java",
+            "args": [
+                "-jar",
+                "${workspaceFolder}/.vscode/google-java-format-1.17.0-all-deps.jar",
+                "--replace",
+                "${file}"
+            ],
+            "group": "build"
+        }
+    ]
+}

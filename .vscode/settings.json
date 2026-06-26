@@ -2,44 +2,18 @@
   "[java]": {
     "editor.tabSize": 2,
     "editor.insertSpaces": true,
-    "editor.formatOnSave": true,
     "editor.defaultFormatter": "redhat.java"
   },
   "java.checkstyle.configuration": "${workspaceFolder}\\.vscode\\google_checks.xml",
   "java.configuration.updateBuildConfiguration": "disabled",
   "java.checkstyle.version": "13.6.0",
-  "cSpell.words": [
-    "ARCHITEW",
-    "casesensitive",
-    "dataformat",
-    "DISTS",
-    "getenv",
-    "Itemtype",
-    "jackson",
-    "javac",
-    "JAVACCMD",
-    "JAVACMD",
-    "linefeeds",
-    "logback",
-    "mvnd",
-    "MVNW",
-    "MWRAPPER",
-    "noprofile",
-    "Prepender",
-    "projectlombok",
-    "PSHOME",
-    "PSMODULEP",
-    "REPOURL",
-    "Scriptblock",
-    "serv",
-    "Shen",
-    "thewesthill",
-    "Unpooled",
-    "untar",
-    "usebackq",
-    "Varint",
-    "webclient",
-    "Zhen"
-  ],
+  "cSpell.customDictionaries": {
+    "project-words": {
+      "name": "project-words",
+      "path": "${workspaceFolder}/.vscode/project-words.txt",
+      "description": "Project specific words",
+      "addWords": true
+    }
+  },
   "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx4G -Xms100m -Xlog:disable",
 }
