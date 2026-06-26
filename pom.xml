@@ -6,7 +6,7 @@
 
     <groupId>net.thewesthill</groupId>
     <artifactId>netty-eg</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>netty-eg</name>
     <description>netty-eg</description>
 
@@ -20,6 +20,7 @@
         <logback.version>1.5.6</logback.version>
         <msgpack.version>0.9.12</msgpack.version>
         <jackson-msgpack.version>0.9.12</jackson-msgpack.version>
+        <protobuf-java.version>4.35.1</protobuf-java.version>
     </properties>
 
     <dependencyManagement>
@@ -69,6 +70,12 @@
             <groupId>org.msgpack</groupId>
             <artifactId>jackson-dataformat-msgpack</artifactId>
             <version>${jackson-msgpack.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>${protobuf-java.version}</version>
         </dependency>
     </dependencies>
 

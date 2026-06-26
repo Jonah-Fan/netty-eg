@@ -1,4 +1,4 @@
-package net.thewesthill.example.netty.eg;
+package net.thewesthill.protobuf;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelFuture;
@@ -9,12 +9,12 @@ import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import lombok.extern.slf4j.Slf4j;
+import io.netty.handler.codec.protobuf.ProtobufDecoder;
+import io.netty.handler.codec.protobuf.ProtobufEncoder;
+import io.netty.handler.codec.protobuf.ProtobufVarint32FrameDecoder;
+import io.netty.handler.codec.protobuf.ProtobufVarint32LengthFieldPrepender;
 
-import net.thewesthill.example.netty.sticking.StickingTimeClientHandler;
-
-@Slf4j
-public class NettyTimeClient {
+public class SubReqClient {
 
   public static void main(String[] args) {
     int port = 8080;
@@ -22,22 +22,29 @@ public class NettyTimeClient {
       try {
         port = Integer.parseInt(args[0]);
       } catch (NumberFormatException e) {
-        log.info(e.getMessage());
+        e.printStackTrace();
       }
     }
-    new NettyTimeClient().connect(port, "127.0.0.1");
+    new SubReqClient().connect("127.0.0.1", port);
   }
 
-  public void connect(int port, String host) {
+  public void connect(String host, int port) {
     EventLoopGroup group = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
+
     try {
       Bootstrap b = new Bootstrap();
       b.group(group).channel(NioSocketChannel.class)
           .option(ChannelOption.TCP_NODELAY, true)
           .handler(new ChannelInitializer<SocketChannel>() {
             @Override
-            protected void initChannel(SocketChannel ch) {
-              ch.pipeline().addLast(new StickingTimeClientHandler());
+            protected void initChannel(SocketChannel ch) throws Exception {
+              ch.pipeline()
+                  .addLast(new ProtobufVarint32FrameDecoder())
+                  .addLast(new ProtobufDecoder(SubscribeRespProto.SubscribeResp
+                      .getDefaultInstance()))
+                  .addLast(new ProtobufVarint32LengthFieldPrepender())
+                  .addLast(new ProtobufEncoder())
+                  .addLast(new SubReqClientHandler());
             }
           });
       ChannelFuture f = b.connect(host, port).syncUninterruptibly();

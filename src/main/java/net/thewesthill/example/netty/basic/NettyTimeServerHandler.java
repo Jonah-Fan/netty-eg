@@ -1,4 +1,4 @@
-package net.thewesthill.example.netty.eg;
+package net.thewesthill.example.netty.basic;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
