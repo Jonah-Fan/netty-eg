@@ -206,10 +206,7 @@ first.
 
 ## Contact
 
-| | |
-| :-- | :-- |
-| **Name**  | Jonah Fan                |
-| **Email** | <jonah-fan@outlook.com>  |
+**Jonah Fan** · [jonah-fan@outlook.com](mailto:jonah-fan@outlook.com)
 
 For project-related discussions, please prefer the
 [GitHub Issues](https://github.com/Jonah-Fan/netty-eg/issues) tracker; use email for off-thread or private inquiries.
