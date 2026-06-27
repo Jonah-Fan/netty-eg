@@ -24,6 +24,8 @@
         <marshalling.version>2.2.3.Final</marshalling.version>
         <marshalling-river.version>2.2.3.Final</marshalling-river.version>
         <marshalling-serial.version>2.2.3.Final</marshalling-serial.version>
+        <activation.version>2.1.3</activation.version>
+        <angus.version>2.0.2</angus.version>
     </properties>
 
     <dependencyManagement>
@@ -97,6 +99,19 @@
             <groupId>org.jboss.marshalling</groupId>
             <artifactId>jboss-marshalling-serial</artifactId>
             <version>${marshalling-serial.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>jakarta.activation</groupId>
+            <artifactId>jakarta.activation-api</artifactId>
+            <version>${activation.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.eclipse.angus</groupId>
+            <artifactId>angus-activation</artifactId>
+            <version>${angus.version}</version>
+            <scope>runtime</scope>
         </dependency>
     </dependencies>
 

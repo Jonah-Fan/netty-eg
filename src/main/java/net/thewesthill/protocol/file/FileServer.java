@@ -1,18 +1,23 @@
-package net.thewesthill.protocol.http;
+package net.thewesthill.protocol.file;
+
+import java.nio.charset.StandardCharsets;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
+import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.http.HttpObjectAggregator;
-import io.netty.handler.codec.http.HttpRequestDecoder;
-import io.netty.handler.codec.http.HttpResponseEncoder;
-import io.netty.handler.stream.ChunkedWriteHandler;
+import io.netty.handler.codec.LineBasedFrameDecoder;
+import io.netty.handler.codec.string.StringDecoder;
+import io.netty.handler.codec.string.StringEncoder;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 
-public class HttpFileServer {
+public class FileServer {
 
   public static void main(String[] args) {
     int port = 8080;
@@ -23,12 +28,16 @@ public class HttpFileServer {
         e.printStackTrace();
       }
     }
-    new HttpFileServer().run(port, DEFAULT_URL);
+    new FileServer(port).run();
   }
 
-  private static final String DEFAULT_URL = "/src";
+  final int port;
 
-  public void run(final int port, final String url) {
+  public FileServer(int port) {
+    this.port = port;
+  }
+
+  public void run() {
     EventLoopGroup bossGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
     EventLoopGroup workGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
 
@@ -36,20 +45,20 @@ public class HttpFileServer {
       ServerBootstrap b = new ServerBootstrap();
       b.group(bossGroup, workGroup)
           .channel(NioServerSocketChannel.class)
+          .option(ChannelOption.SO_BACKLOG, 100)
+          .handler(new LoggingHandler(LogLevel.INFO))
           .childHandler(
-              new ChannelInitializer<io.netty.channel.socket.SocketChannel>() {
+              new ChannelInitializer<SocketChannel>() {
                 @Override
-                protected void initChannel(io.netty.channel.socket.SocketChannel ch)
-                    throws Exception {
+                protected void initChannel(SocketChannel ch) throws Exception {
                   ch.pipeline()
-                      .addLast("http-decoder", new HttpRequestDecoder())
-                      .addLast("http-aggregator", new HttpObjectAggregator(65536))
-                      .addLast("http-encoder", new HttpResponseEncoder())
-                      .addLast("http-chunked", new ChunkedWriteHandler())
-                      .addLast("fileServerHandler", new HttpFileServerHandler(url));
+                      .addLast(new StringEncoder(StandardCharsets.UTF_8))
+                      .addLast(new LineBasedFrameDecoder(1024))
+                      .addLast(new StringDecoder(StandardCharsets.UTF_8))
+                      .addLast(new FileServerHandler());
                 }
               });
-      ChannelFuture f = b.bind("127.0.0.1", port).syncUninterruptibly();
+      ChannelFuture f = b.bind(port).syncUninterruptibly();
       f.channel().closeFuture().syncUninterruptibly();
     } finally {
       bossGroup.shutdownGracefully().syncUninterruptibly();

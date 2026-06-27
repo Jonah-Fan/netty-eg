@@ -31,7 +31,7 @@ Each layer addresses a shortcoming of the previous one:
 5. **Netty basics** — same time server/client on `EventLoopGroup` + `ChannelPipeline`. Boilerplate collapses.
 6. **Frame decoders** — `LineBasedFrameDecoder`, `DelimiterBasedFrameDecoder` (`$_`), `FixedLengthFrameDecoder` (20 B).
 7. **Codecs** — MessagePack, Protobuf, JBoss Marshalling, each on top of a length-prefixed frame.
-8. **Protocol** — HTTP file server skeleton stacking `HttpRequestDecoder` + `HttpObjectAggregator` + `ChunkedWriteHandler`.
+8. **Protocol** — HTTP file server (`HttpRequestDecoder` + `HttpObjectAggregator` + `HttpResponseEncoder` + `ChunkedWriteHandler`) and a text-protocol file server using `DefaultFileRegion` zero-copy transfer.
 
 ## Project structure
 
@@ -54,7 +54,8 @@ src/main/java/net/thewesthill/
 │   ├── pojo/          # Generated protobuf message classes
 │   └── serializable/  # JDK Serializable vs. hand-rolled byte buffer
 └── protocol/
-    └── http/          # HTTP file server skeleton (work in progress)
+    ├── http/          # HTTP file server (GET, directory listing, chunked transfer)
+    └── file/         # Text-protocol file server (DefaultFileRegion zero-copy)
 ```
 
 ## Prerequisites
@@ -166,11 +167,24 @@ Standalone `main` classes comparing JDK `ObjectOutputStream` against a hand-roll
 
 ### HTTP file server
 
-Scaffold stacking `HttpRequestDecoder` + `HttpObjectAggregator` + `HttpResponseEncoder` + `ChunkedWriteHandler`. The
-handler is a stub — file listing and serving are not implemented yet, so this example is not runnable as-is.
+A directory-listing + file-download server. The pipeline stacks `HttpRequestDecoder` → `HttpObjectAggregator(65536)`
+→ `HttpResponseEncoder` → `ChunkedWriteHandler`. The handler serves `GET` requests only: it sanitizes the URI
+(rejects path traversal and `<>&"` characters), lists directories as HTML, redirects bare directory paths to add a
+trailing `/`, and streams file contents via `ChunkedFile`. MIME types are resolved through `MimetypesFileTypeMap`.
 
-- `protocol.http.HttpFileServer` — HTTP file server skeleton
-- `protocol.http.HttpFileServerHandler` — stub handler (TODO)
+Root is bound to `DEFAULT_URL = "/src"`, so `http://127.0.0.1:8080/src` lists the project source tree.
+
+- `protocol.http.HttpFileServer` — server entry; binds `127.0.0.1:8080`, serves the `/src` subtree
+- `protocol.http.HttpFileServerHandler` — `FullHttpRequest` handler: sanitize → list/redirect → stream
+
+### Text-protocol file server
+
+A minimalist file server speaking a line-based text protocol: client sends a file path as a UTF-8 line, server replies
+with `<path> <length>` then streams the bytes via `DefaultFileRegion` (zero-copy from the file channel to the socket,
+bypassing user-space copies). Uses `StringEncoder` + `LineBasedFrameDecoder` + `StringDecoder` for the request framing.
+
+- `protocol.file.FileServer` — server entry; binds `0.0.0.0:8080`
+- `protocol.file.FileServerHandler` — reads a path line, streams the file via `DefaultFileRegion`
 
 ## Asking questions and reporting issues
 
