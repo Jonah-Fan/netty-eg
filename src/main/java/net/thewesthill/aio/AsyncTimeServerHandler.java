@@ -10,8 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class AsyncTimeServerHandler implements Runnable {
 
-  CountDownLatch latch;
-  AsynchronousServerSocketChannel asynchronousServerSocketChannel;
+  private CountDownLatch latch;
+  private AsynchronousServerSocketChannel asynchronousServerSocketChannel;
 
   public AsyncTimeServerHandler(int port) {
     try {
@@ -19,7 +19,7 @@ public class AsyncTimeServerHandler implements Runnable {
       asynchronousServerSocketChannel.bind(new InetSocketAddress(port));
       log.info("The time server is start in port: {}", port);
     } catch (IOException e) {
-      log.info(e.getMessage());
+      log.error("failed to start time server on port {}", port, e);
     }
   }
 
@@ -31,11 +31,19 @@ public class AsyncTimeServerHandler implements Runnable {
     try {
       latch.await();
     } catch (InterruptedException e) {
-      log.info(e.getMessage());
+      log.error("interrupted while awaiting latch", e);
     }
   }
 
-  public void doAccept() {
+  private void doAccept() {
     asynchronousServerSocketChannel.accept(this, new AcceptCompletionHandler());
+  }
+
+  AsynchronousServerSocketChannel getChannel() {
+    return asynchronousServerSocketChannel;
+  }
+
+  CountDownLatch getLatch() {
+    return latch;
   }
 }

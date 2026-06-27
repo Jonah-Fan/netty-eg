@@ -39,7 +39,7 @@ public class TimeClientHandler extends ChannelInboundHandlerAdapter {
 
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-    log.info(cause.getMessage());
+    log.error("channel exception", cause);
     ctx.close();
   }
 }

@@ -119,7 +119,7 @@ public class HttpFileServerHandler extends SimpleChannelInboundHandler<FullHttpR
 
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-    cause.printStackTrace();
+    log.error("channel exception", cause);
     if (ctx.channel().isActive()) {
       sendError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR);
     }

@@ -22,7 +22,7 @@ public class EchoServerHandler extends ChannelInboundHandlerAdapter {
 
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-    log.info(cause.getMessage());
+    log.error("channel exception", cause);
     ctx.close();
   }
 }

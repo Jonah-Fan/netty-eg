@@ -17,7 +17,7 @@ public class TimeServer {
     ServerSocket serverSocket = null;
     try {
       serverSocket = new ServerSocket(8080);
-      log.info("The time server is start in port : " + 8080);
+      log.info("The time server is start in port : {}", 8080);
       Socket socket;
       while (true) {
         socket = serverSocket.accept();
@@ -65,7 +65,7 @@ public class TimeServer {
           try {
             in.close();
           } catch (IOException ex) {
-            log.info(ex.getMessage());
+            log.error("close failed", ex);
           }
         }
 
@@ -76,7 +76,7 @@ public class TimeServer {
         try {
           this.socket.close();
         } catch (IOException ex) {
-          log.info(ex.getMessage());
+          log.error("close failed", ex);
         }
       }
     }

@@ -9,9 +9,11 @@ import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import lombok.extern.slf4j.Slf4j;
 
 import net.thewesthill.codec.protobuf.SubReqClientHandler;
 
+@Slf4j
 public class SubReqClient {
 
   public static void main(String[] args) {
@@ -20,7 +22,7 @@ public class SubReqClient {
       try {
         port = Integer.parseInt(args[0]);
       } catch (NumberFormatException e) {
-        e.printStackTrace();
+        log.error("invalid port argument: {}", args[0], e);
       }
     }
     new SubReqClient().connect("127.0.0.1", port);

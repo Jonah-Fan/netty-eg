@@ -12,7 +12,7 @@ public class AcceptCompletionHandler
 
   @Override
   public void completed(AsynchronousSocketChannel result, AsyncTimeServerHandler attachment) {
-    attachment.asynchronousServerSocketChannel.accept(attachment, this);
+    attachment.getChannel().accept(attachment, this);
 
     ByteBuffer buffer = ByteBuffer.allocate(1024);
     result.read(buffer, buffer, new ReadCompletionHandler(result));
@@ -20,7 +20,7 @@ public class AcceptCompletionHandler
 
   @Override
   public void failed(Throwable exc, AsyncTimeServerHandler attachment) {
-    log.info(exc.getMessage());
-    attachment.latch.countDown();
+    log.error("accept failed", exc);
+    attachment.getLatch().countDown();
   }
 }

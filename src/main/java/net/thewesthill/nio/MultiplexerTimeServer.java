@@ -32,8 +32,8 @@ public class MultiplexerTimeServer implements Runnable {
       servChannel.register(selector, SelectionKey.OP_ACCEPT);
       log.info("The time server is start in port {}", port);
     } catch (IOException e) {
-      log.info(e.getMessage());
-      System.exit(1);
+      log.error("failed to init multiplexer on port {}", port, e);
+      throw new IllegalStateException("multiplexer init failed", e);
     }
   }
 
@@ -64,7 +64,7 @@ public class MultiplexerTimeServer implements Runnable {
           }
         }
       } catch (IOException e) {
-        log.info(e.getMessage());
+        log.error("selector error", e);
       }
     }
   }

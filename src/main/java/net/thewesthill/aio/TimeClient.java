@@ -11,7 +11,7 @@ public class TimeClient {
       try {
         port = Integer.parseInt(args[0]);
       } catch (NumberFormatException e) {
-        log.info(e.getMessage());
+        log.error("invalid port argument: {}", args[0], e);
       }
     }
     new Thread(new AsyncTimeClientHandler("127.0.0.1", port), "AIO-AsyncTimeClientHandler-001")

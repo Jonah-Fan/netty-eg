@@ -26,7 +26,7 @@ public class EchoServer {
       try {
         port = Integer.parseInt(args[0]);
       } catch (NumberFormatException e) {
-        log.info(e.getMessage());
+        log.error("invalid port argument: {}", args[0], e);
       }
     }
     new EchoServer().bind(port);

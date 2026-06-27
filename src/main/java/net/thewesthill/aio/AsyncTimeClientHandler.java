@@ -25,7 +25,7 @@ public class AsyncTimeClientHandler
     try {
       client = AsynchronousSocketChannel.open();
     } catch (IOException e) {
-      log.info(e.getMessage());
+      log.error("failed to open async socket channel", e);
     }
   }
 
@@ -36,12 +36,12 @@ public class AsyncTimeClientHandler
     try {
       latch.await();
     } catch (InterruptedException e) {
-      log.info(e.getMessage());
+      log.error("interrupted while awaiting latch", e);
     }
     try {
       client.close();
     } catch (IOException e) {
-      log.info(e.getMessage());
+      log.error("failed to close client channel", e);
     }
   }
 
@@ -81,7 +81,7 @@ public class AsyncTimeClientHandler
                         client.close();
                         latch.countDown();
                       } catch (IOException e) {
-                        log.info(e.getMessage());
+                        log.error("failed to close client channel", e);
                       }
                     }
                   });
@@ -94,7 +94,7 @@ public class AsyncTimeClientHandler
               client.close();
               latch.countDown();
             } catch (IOException e) {
-              log.info(e.getMessage());
+              log.error("failed to close client channel", e);
             }
           }
         });
@@ -102,12 +102,12 @@ public class AsyncTimeClientHandler
 
   @Override
   public void failed(Throwable exc, AsyncTimeClientHandler attachment) {
-    log.info(exc.getMessage());
+    log.error("async connect failed", exc);
     try {
       client.close();
       latch.countDown();
     } catch (IOException e) {
-      log.info(e.getMessage());
+      log.error("failed to close client channel", e);
     }
   }
 }

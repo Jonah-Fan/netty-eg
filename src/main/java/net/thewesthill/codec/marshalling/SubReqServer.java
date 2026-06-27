@@ -11,9 +11,11 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import lombok.extern.slf4j.Slf4j;
 
 import net.thewesthill.codec.protobuf.SubReqServerHandler;
 
+@Slf4j
 public class SubReqServer {
 
   public static void main(String[] args) {
@@ -22,7 +24,7 @@ public class SubReqServer {
       try {
         port = Integer.parseInt(args[0]);
       } catch (NumberFormatException e) {
-        e.printStackTrace();
+        log.error("invalid port argument: {}", args[0], e);
       }
     }
     new SubReqServer().bind(port);

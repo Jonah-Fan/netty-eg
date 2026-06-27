@@ -25,13 +25,13 @@ public class TimeClient {
       String req = in.readLine();
       log.info("Now is : {}", req);
     } catch (IOException e) {
-      log.info(e.getMessage());
+      log.error("time client failed", e);
     } finally {
       if (in != null) {
         try {
           in.close();
         } catch (IOException e) {
-          log.info(e.getMessage());
+          log.error("failed to close reader", e);
         }
       }
 
@@ -43,7 +43,7 @@ public class TimeClient {
         try {
           socket.close();
         } catch (IOException e) {
-          log.info(e.getMessage());
+          log.error("failed to close socket", e);
         }
       }
     }

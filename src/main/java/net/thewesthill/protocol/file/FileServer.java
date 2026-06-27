@@ -16,7 +16,9 @@ import io.netty.handler.codec.string.StringDecoder;
 import io.netty.handler.codec.string.StringEncoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class FileServer {
 
   public static void main(String[] args) {
@@ -25,7 +27,7 @@ public class FileServer {
       try {
         port = Integer.parseInt(args[0]);
       } catch (NumberFormatException e) {
-        e.printStackTrace();
+        log.error("invalid port argument: {}", args[0], e);
       }
     }
     new FileServer(port).run();

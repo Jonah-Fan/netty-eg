@@ -6,12 +6,15 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
+import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.stream.ChunkedWriteHandler;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class HttpFileServer {
 
   public static void main(String[] args) {
@@ -20,7 +23,7 @@ public class HttpFileServer {
       try {
         port = Integer.parseInt(args[0]);
       } catch (NumberFormatException e) {
-        e.printStackTrace();
+        log.error("invalid port argument: {}", args[0], e);
       }
     }
     new HttpFileServer().run(port, DEFAULT_URL);
@@ -37,9 +40,9 @@ public class HttpFileServer {
       b.group(bossGroup, workGroup)
           .channel(NioServerSocketChannel.class)
           .childHandler(
-              new ChannelInitializer<io.netty.channel.socket.SocketChannel>() {
+              new ChannelInitializer<SocketChannel>() {
                 @Override
-                protected void initChannel(io.netty.channel.socket.SocketChannel ch)
+                protected void initChannel(SocketChannel ch)
                     throws Exception {
                   ch.pipeline()
                       .addLast("http-decoder", new HttpRequestDecoder())

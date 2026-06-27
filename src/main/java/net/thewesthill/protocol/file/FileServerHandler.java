@@ -7,7 +7,9 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.DefaultFileRegion;
 import io.netty.channel.FileRegion;
 import io.netty.channel.SimpleChannelInboundHandler;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class FileServerHandler extends SimpleChannelInboundHandler<String> {
 
   @Override
@@ -33,7 +35,7 @@ public class FileServerHandler extends SimpleChannelInboundHandler<String> {
 
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-    cause.printStackTrace();
+    log.error("channel exception", cause);
     ctx.close();
   }
 }

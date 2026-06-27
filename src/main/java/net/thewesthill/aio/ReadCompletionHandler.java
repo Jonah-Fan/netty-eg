@@ -36,7 +36,7 @@ public class ReadCompletionHandler implements CompletionHandler<Integer, ByteBuf
     try {
       this.channel.close();
     } catch (IOException e) {
-      log.info(e.getMessage());
+      log.error("failed to close channel", e);
     }
   }
 
@@ -62,7 +62,7 @@ public class ReadCompletionHandler implements CompletionHandler<Integer, ByteBuf
               try {
                 channel.close();
               } catch (IOException e) {
-                log.info(e.getMessage());
+                log.error("failed to close channel", e);
               }
             }
           });

@@ -32,7 +32,7 @@ public class SubReqClientHandler extends ChannelInboundHandlerAdapter {
 
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-    cause.printStackTrace();
+    log.error("channel exception", cause);
     ctx.close();
   }
 

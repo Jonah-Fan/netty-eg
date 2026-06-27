@@ -33,8 +33,8 @@ public class TimeClientHandle implements Runnable {
       socketChannel = SocketChannel.open();
       socketChannel.configureBlocking(false);
     } catch (IOException e) {
-      log.info(e.getMessage());
-      System.exit(1);
+      log.error("failed to init selector and channel", e);
+      throw new IllegalStateException("client init failed", e);
     }
   }
 
@@ -43,8 +43,8 @@ public class TimeClientHandle implements Runnable {
     try {
       doConnect();
     } catch (IOException e) {
-      log.info(e.getMessage());
-      System.exit(1);
+      log.error("connect failed", e);
+      throw new IllegalStateException("connect failed", e);
     }
 
     while (!stop) {
@@ -68,7 +68,7 @@ public class TimeClientHandle implements Runnable {
           }
         }
       } catch (IOException e) {
-        log.info(e.getMessage());
+        log.error("selector error", e);
       }
     }
   }
@@ -84,7 +84,7 @@ public class TimeClientHandle implements Runnable {
         sc.register(selector, SelectionKey.OP_READ);
         doWrite(sc);
       } else {
-        System.exit(1);
+        throw new IllegalStateException("connect failed");
       }
     }
 
