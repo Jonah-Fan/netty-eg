@@ -22,7 +22,7 @@
         <jackson-msgpack.version>0.9.12</jackson-msgpack.version>
         <protobuf-java.version>4.35.1</protobuf-java.version>
         <marshalling.version>2.2.3.Final</marshalling.version>
-        <marshalling-river.version>2.2.3.Final</marshalling-river.version>
+        <marshalling-river.version>2.3.0</marshalling-river.version>
         <marshalling-serial.version>2.2.3.Final</marshalling-serial.version>
         <activation.version>2.1.3</activation.version>
         <angus.version>2.0.2</angus.version>
