@@ -31,7 +31,7 @@ Each layer addresses a shortcoming of the previous one:
 5. **Netty basics** — same time server/client on `EventLoopGroup` + `ChannelPipeline`. Boilerplate collapses.
 6. **Frame decoders** — `LineBasedFrameDecoder`, `DelimiterBasedFrameDecoder` (`$_`), `FixedLengthFrameDecoder` (20 B).
 7. **Codecs** — MessagePack, Protobuf, JBoss Marshalling, each on top of a length-prefixed frame.
-8. **Protocol** — HTTP file server (`HttpRequestDecoder` + `HttpObjectAggregator` + `HttpResponseEncoder` + `ChunkedWriteHandler`) and a text-protocol file server using `DefaultFileRegion` zero-copy transfer.
+8. **Protocol** — HTTP file server (`HttpRequestDecoder` + `HttpObjectAggregator` + `HttpResponseEncoder` + `ChunkedWriteHandler`), a text-protocol file server using `DefaultFileRegion` zero-copy transfer, and a JiBX XML binding round-trip (`Order` POJO ↔ XML).
 
 ## Project structure
 
@@ -54,8 +54,10 @@ src/main/java/net/thewesthill/
 │   ├── pojo/          # Generated protobuf message classes
 │   └── serializable/  # JDK Serializable vs. hand-rolled byte buffer
 └── protocol/
-    ├── http/          # HTTP file server (GET, directory listing, chunked transfer)
-    └── file/         # Text-protocol file server (DefaultFileRegion zero-copy)
+    ├── http/
+    │   ├── fileserver/  # HTTP file server (GET, directory listing, chunked transfer)
+    │   └── xml/         # JiBX XML binding round-trip (Order POJO ↔ XML)
+    └── file/            # Text-protocol file server (DefaultFileRegion zero-copy)
 ```
 
 ## Prerequisites
@@ -174,8 +176,22 @@ trailing `/`, and streams file contents via `ChunkedFile`. MIME types are resolv
 
 Root is bound to `DEFAULT_URL = "/src"`, so `http://127.0.0.1:8080/src` lists the project source tree.
 
-- `protocol.http.HttpFileServer` — server entry; binds `127.0.0.1:8080`, serves the `/src` subtree
-- `protocol.http.HttpFileServerHandler` — `FullHttpRequest` handler: sanitize → list/redirect → stream
+- `protocol.http.fileserver.HttpFileServer` — server entry; binds `127.0.0.1:8080`, serves the `/src` subtree
+- `protocol.http.fileserver.HttpFileServerHandler` — `FullHttpRequest` handler: sanitize → list/redirect → stream
+
+### XML codec (JiBX)
+
+A standalone marshal/unmarshal round-trip using [JiBX](https://www.jibx.org/). An `Order` POJO (with nested `Customer`,
+two `Address` structures, a `Shipping` enum, and a total) is marshalled to indented XML and unmarshalled back via a
+JiBX binding defined in `src/main/resources/binding.xml`. The `jibx-maven-plugin` runs the `bind` goal during the
+`compile` phase, generating the binding classes from `binding.xml` (the matching schema lives in
+`src/main/resources/pojo.xsd`).
+
+- `protocol.http.xml.TestOrder` — entry point: `OrderFactory.create(999)` → `encode2Xml` → `decode2Order`
+- `protocol.http.xml.pojo.Order` / `Customer` / `Address` / `Shipping` — the bound POJOs
+- `protocol.http.xml.pojo.OrderFactory` — builds a sample `Order` instance
+- `src/main/resources/binding.xml` — JiBX binding (XML ↔ Java field mapping)
+- `src/main/resources/pojo.xsd` — XML schema for the bound POJOs
 
 ### Text-protocol file server
 

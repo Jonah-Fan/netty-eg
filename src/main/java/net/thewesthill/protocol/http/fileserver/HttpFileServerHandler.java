@@ -1,4 +1,4 @@
-package net.thewesthill.protocol.http;
+package net.thewesthill.protocol.http.fileserver;
 
 import java.io.File;
 import java.io.FileNotFoundException;

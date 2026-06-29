@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<project name="netty-eg" default="compile">
+  <property file="build.properties"/>
+
+  <property name="basedir" value="."/>
+
+  <path id="classpath">
+    <fileset dir="${jibx-home}/lib" includes="**/*.jar"/>
+    <pathelement path="${basedir}/bin/"/>
+  </path>
+
+  <target name="check-jibx">
+    <fail unless="jibx-home" message="jibx-home not set! Please define in build.properties: jibx-home=D:/tools/jibx-1.2.6"/>
+    <available property="jibx-bind-found" file="${jibx-home}/lib/jibx-bind.jar"/>
+    <fail unless="jibx-bind-found" message="Cannot find ${jibx-home}/lib/jibx-bind.jar"/>
+  </target>
+
+  <target name="clean">
+    <delete quiet="true" dir="${basedir}/bin/net/thewesthill/protocol/http/xml/pojo"/>
+    <delete quiet="true" file="${basedir}/binding.xml"/>
+    <delete quiet="true">
+      <fileset dir="${basedir}" includes="out*.xml"/>
+      <fileset dir="${basedir}" includes="*.xsd"/>
+    </delete>
+  </target>
+
+  <target name="compile" depends="clean,check-jibx">
+    <echo message="Compiling Java source code"/>
+    <mkdir dir="${basedir}/bin"/>
+    <javac srcdir="${basedir}/src/main/java/net/thewesthill/protocol/http/xml/pojo" destdir="${basedir}/bin" debug="on">
+      <classpath refid="classpath"/>
+    </javac>
+  </target>
+
+  <target name="bindgen" depends="compile">
+    <echo message="Running BindGen tool..."/>
+    <java classpathref="classpath" fork="true" failonerror="true"
+          classname="org.jibx.binding.generator.BindGen">
+      <arg value="-s"/>
+      <arg value="${basedir}/src/main/java/net/thewesthill/protocol/http/xml/pojo/"/>
+      <arg value="net.thewesthill.protocol.http.xml.pojo.Order"/>
+    </java>
+  </target>
+  
+</project>

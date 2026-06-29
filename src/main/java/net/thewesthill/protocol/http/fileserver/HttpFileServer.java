@@ -1,4 +1,4 @@
-package net.thewesthill.protocol.http;
+package net.thewesthill.protocol.http.fileserver;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
