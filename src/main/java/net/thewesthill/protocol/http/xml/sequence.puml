@@ -1,0 +1,171 @@
+@startuml
+' Sequence diagram for the HTTP XML (JiBX) round-trip example.
+' Focus: HttpXmlClient and HttpXmlServer workflow, including the
+' ChannelPipeline encoding/decoding steps for both request and response.
+'
+' Render with a PlantUML IDE plugin, the PlantUML CLI, or
+' https://www.plantuml.com/plantuml/uml/.
+
+title HTTP XML (JiBX) Round-Trip: HttpXmlClient <-> HttpXmlServer
+
+skinparam maxMessageSize 0
+skinparam BoxPadding 6
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "Client\nmain" as CMain
+box "HttpXmlClient\n(NioSocketChannel + ChannelPipeline)" #E7F3FF
+    participant "HttpXmlClient" as Client
+    participant "HttpXmlClientHandler\nSimpleChannelInboundHandler<HttpXmlResponse>" as CH
+    participant "HttpXmlRequestEncoder" as CRE
+    participant "HttpRequestEncoder" as HRE
+    participant "HttpResponseDecoder" as HRD
+    participant "HttpObjectAggregator\n(65536)" as CAGG
+    participant "HttpXmlResponseDecoder" as CRD
+end box
+
+box "Network (TCP 127.0.0.1:8080)" #F5F5F5
+    participant "Socket" as Net
+end box
+
+box "HttpXmlServer\n(NioServerSocketChannel + ChannelPipeline)" #E8F5E9
+    participant "HttpRequestDecoder" as SHRD
+    participant "HttpObjectAggregator\n(65536)" as SAGG
+    participant "HttpXmlRequestDecoder" as SRD
+    participant "HttpXmlServerHandler\nSimpleChannelInboundHandler<HttpXmlRequest>" as SH
+    participant "HttpXmlResponseEncoder" as SRE
+    participant "HttpResponseEncoder" as HSE
+    participant "HttpXmlServer" as Server
+end box
+actor "Server\nmain" as SMain
+
+== 1. Server bootstrap ==
+
+SMain -> Server : run(port)
+activate Server #B5E5C1
+Server -> Server : boss + worker =\n  MultiThreadIoEventLoopGroup(NioIoHandler.newFactory())\n  ServerBootstrap.channel(NioServerSocketChannel)\n  .handler(LoggingHandler(INFO))
+note right of Server
+  Server child pipeline (addLast order):
+    1. http-decoder    : HttpRequestDecoder          (inbound)
+    2. http-aggregator : HttpObjectAggregator(65536)  (inbound)
+    3. xml-decoder     : HttpXmlRequestDecoder(Order.class, true) (inbound)
+    4. http-encoder    : HttpResponseEncoder         (outbound)
+    5. xml-encoder     : HttpXmlResponseEncoder       (outbound)
+    6. xml-server-handler : HttpXmlServerHandler      (inbound)
+end note
+Server -> Net : bind(InetSocketAddress(port)).syncUninterruptibly()
+Net --> Server : bound; closeFuture.syncUninterruptibly() blocks
+deactivate Server
+
+== 2. Client bootstrap ==
+
+CMain -> Client : connect(port)
+activate Client #A6D8F0
+Client -> Client : group =\n  MultiThreadIoEventLoopGroup(NioIoHandler.newFactory())\n  Bootstrap.channel(NioSocketChannel)\n  .option(TCP_NODELAY, true)
+note right of Client
+  Client pipeline (addLast order):
+    1. http-decoder    : HttpResponseDecoder          (inbound)
+    2. http-aggregator : HttpObjectAggregator(65536)  (inbound)
+    3. xml-decoder     : HttpXmlResponseDecoder(Order.class, true) (inbound)
+    4. http-encoder    : HttpRequestEncoder           (outbound)
+    5. xml-encoder     : HttpXmlRequestEncoder         (outbound)
+    6. xml-client-handler : HttpXmlClientHandler      (inbound)
+end note
+Client -> Net : connect(InetSocketAddress(port)).syncUninterruptibly()
+Net --> Client : channelActive
+deactivate Client
+
+== 3. Client -> Server : send Order (outbound, reverse pipeline order) ==
+
+Net -> CH : TCP connected -> channelActive(ctx)
+activate CH
+CH -> CH : OrderFactory.create(666) -> Order\n  new HttpXmlRequest(null, order)
+CH -> CRE : ctx.writeAndFlush(request)
+activate CRE
+CRE -> CRE : encode0(ctx, body)\n  JiBX marshal Order -> XML (UTF-8, indent=2)
+CRE -> CRE : request == null ->\n  new DefaultFullHttpRequest(HTTP_1_1, GET, "/do", body)
+CRE -> CRE : headers.set(HOST, CONNECTION: close,\n  ACCEPT_ENCODING, ACCEPT_CHARSET, ACCEPT_LANGUAGE,\n  USER_AGENT, ACCEPT)\n  HttpUtil.setContentLength(request, body.readableBytes())
+CRE -> HRE : FullHttpRequest
+deactivate CRE
+activate HRE
+HRE -> Net : HTTP bytes (wire format)
+deactivate HRE
+deactivate CH
+
+== 4. Server receives request (inbound, pipeline order) ==
+
+Net -> SHRD : HTTP bytes
+activate SHRD
+SHRD -> SAGG : HttpObject (decoded HTTP)
+deactivate SHRD
+activate SAGG
+SAGG -> SRD : FullHttpRequest (aggregated)
+deactivate SAGG
+activate SRD
+SRD -> SRD : if !decoderResult().isSuccess()\n  -> sendError(400 BAD_REQUEST) + CLOSE
+SRD -> SRD : decode0(ctx, msg.content())\n  JiBX unmarshal XML -> Order
+SRD -> SH : new HttpXmlRequest(request, order)
+deactivate SRD
+
+activate SH
+SH -> SH : log.info("Http server receive request : {}", order)
+SH -> SH : doBusiness(order)\n  customer.setLastName("Jonheey")\n  customer.setMiddleName(["Bai"])\n  billTo: city="Shenzhen", country="China",\n        state="Small Way", postCode="88657"\n  shipTo = billTo
+SH -> SH : new HttpXmlResponse(null, order)
+SH -> SRE : ctx.writeAndFlush(httpXmlResponse)
+deactivate SH
+
+== 5. Server -> Client : send response (outbound, reverse pipeline order) ==
+
+activate SRE
+SRE -> SRE : encode0(ctx, msg.getResult())\n  JiBX marshal Order -> XML (UTF-8, indent=2)
+SRE -> SRE : response == null ->\n  new DefaultFullHttpResponse(HTTP_1_1, OK, body)
+SRE -> SRE : headers.set(CONTENT_TYPE, "text/xml")\n  HttpUtil.setContentLength(response, body.readableBytes())
+SRE -> HSE : FullHttpResponse
+deactivate SRE
+activate HSE
+HSE -> Net : HTTP bytes (wire format)
+deactivate HSE
+
+alt !HttpUtil.isKeepAlive(request)  // request had CONNECTION: close
+    Net -> Net : future.addListener(operationComplete -> ctx.close())\n  // channel closed after flush
+end
+
+== 6. Client receives response (inbound, pipeline order) ==
+
+Net -> HRD : HTTP bytes
+activate HRD
+HRD -> CAGG : HttpObject (decoded HTTP)
+deactivate HRD
+activate CAGG
+CAGG -> CRD : FullHttpResponse (aggregated)
+deactivate CAGG
+activate CRD
+CRD -> CRD : decode0(ctx, msg.content())\n  JiBX unmarshal XML -> Order
+CRD -> CH : new HttpXmlResponse(response, order)
+deactivate CRD
+
+activate CH
+CH -> CH : log response headers\n  log response body (Order)
+deactivate CH
+
+Net -> Client : server closed the channel\n  closeFuture returns
+Client -> Net : finally: group.shutdownGracefully().syncUninterruptibly()
+Server -> Net : finally: boss + worker.shutdownGracefully().syncUninterruptibly()
+
+== 7. Exception path ==
+
+note over SH #FFE0E0
+  HttpXmlServerHandler.exceptionCaught(ctx, cause):
+    if (ctx.channel().isActive()) {
+      sendError(ctx, INTERNAL_SERVER_ERROR);
+      // 500, text/plain; charset=UTF-8, addListener(CLOSE)
+    }
+end note
+
+note over CH #FFE0E0
+  HttpXmlClientHandler.exceptionCaught(ctx, cause):
+    log.error("channel exception", cause);
+    ctx.close();
+end note
+
+@enduml
