@@ -56,7 +56,7 @@ src/main/java/net/thewesthill/
 └── protocol/
     ├── http/
     │   ├── fileserver/  # HTTP file server (GET, directory listing, chunked transfer)
-    │   └── xml/         # JiBX XML binding round-trip (Order POJO ↔ XML)
+    │   └── xml/         # JiBX XML binding: standalone round-trip + HTTP server/client
     └── file/            # Text-protocol file server (DefaultFileRegion zero-copy)
 ```
 
@@ -181,13 +181,33 @@ Root is bound to `DEFAULT_URL = "/src"`, so `http://127.0.0.1:8080/src` lists th
 
 ### XML codec (JiBX)
 
-A standalone marshal/unmarshal round-trip using [JiBX](https://www.jibx.org/). An `Order` POJO (with nested `Customer`,
-two `Address` structures, a `Shipping` enum, and a total) is marshalled to indented XML and unmarshalled back via a
-JiBX binding defined in `src/main/resources/binding.xml`. The `jibx-maven-plugin` runs the `bind` goal during the
-`compile` phase, generating the binding classes from `binding.xml` (the matching schema lives in
-`src/main/resources/pojo.xsd`).
+A [JiBX](https://www.jibx.org/) XML binding example with two entry points: a standalone marshal/unmarshal round-trip,
+and a full HTTP request-response round-trip that stacks the JiBX codecs on top of Netty's HTTP codecs.
 
-- `protocol.http.xml.TestOrder` — entry point: `OrderFactory.create(999)` → `encode2Xml` → `decode2Order`
+An `Order` POJO (with nested `Customer`, two `Address` structures, a `Shipping` enum, and a total) is bound to XML via
+`src/main/resources/binding.xml`. The `jibx-maven-plugin` runs the `bind` goal during the `compile` phase, generating
+the binding classes from `binding.xml` (the matching schema lives in `src/main/resources/pojo.xsd`).
+
+**Standalone round-trip**
+
+- `protocol.http.xml.TestOrder` — `OrderFactory.create(999)` → `encode2Xml` → `decode2Order`
+
+**HTTP server / client round-trip**
+
+The server binds `127.0.0.1:8080` and stacks `HttpRequestDecoder` → `HttpObjectAggregator(65536)` →
+`HttpXmlRequestDecoder` → `HttpResponseEncoder` → `HttpXmlResponseEncoder` → `HttpXmlServerHandler`. The client mirrors
+this with `HttpResponseDecoder` → `HttpObjectAggregator(65536)` → `HttpXmlResponseDecoder` → `HttpRequestEncoder` →
+`HttpXmlRequestEncoder` → `HttpXmlClientHandler`. On connect the client sends an `Order`; the server mutates it
+(renames the customer, rewrites the address) and writes it back, then closes the channel unless the request was
+keep-alive.
+
+- `protocol.http.xml.server.HttpXmlServer` / `HttpXmlServerHandler` — server entry + business handler
+- `protocol.http.xml.client.HttpXmlClient` / `HttpXmlClientHandler` — client entry + response logger
+- `protocol.http.xml.codec.HttpXmlRequestEncoder` / `HttpXmlRequestDecoder` — XML ↔ `FullHttpRequest` codecs
+- `protocol.http.xml.codec.HttpXmlResponseEncoder` / `HttpXmlResponseDecoder` — XML ↔ `FullHttpResponse` codecs
+
+**POJOs and binding**
+
 - `protocol.http.xml.pojo.Order` / `Customer` / `Address` / `Shipping` — the bound POJOs
 - `protocol.http.xml.pojo.OrderFactory` — builds a sample `Order` instance
 - `src/main/resources/binding.xml` — JiBX binding (XML ↔ Java field mapping)

@@ -15,11 +15,11 @@ import io.netty.util.CharsetUtil;
 
 public class HttpXmlRequestDecoder extends AbstractHttpXmlDecoder<FullHttpRequest> {
 
-  protected HttpXmlRequestDecoder(Class<?> clazz) {
+  public HttpXmlRequestDecoder(Class<?> clazz) {
     this(clazz, false);
   }
 
-  protected HttpXmlRequestDecoder(Class<?> clazz, boolean isPrint) {
+  public HttpXmlRequestDecoder(Class<?> clazz, boolean isPrint) {
     super(clazz, isPrint);
   }
 
