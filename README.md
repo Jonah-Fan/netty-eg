@@ -199,7 +199,7 @@ The server binds `127.0.0.1:8080` and stacks `HttpRequestDecoder` → `HttpObjec
 this with `HttpResponseDecoder` → `HttpObjectAggregator(65536)` → `HttpXmlResponseDecoder` → `HttpRequestEncoder` →
 `HttpXmlRequestEncoder` → `HttpXmlClientHandler`. On connect the client sends an `Order`; the server mutates it
 (renames the customer, rewrites the address) and writes it back, then closes the channel unless the request was
-keep-alive.
+keep-alive. `exceptionCaught` falls back to a `500 Internal Server Error` plain-text response and closes the channel.
 
 - `protocol.http.xml.server.HttpXmlServer` / `HttpXmlServerHandler` — server entry + business handler
 - `protocol.http.xml.client.HttpXmlClient` / `HttpXmlClientHandler` — client entry + response logger

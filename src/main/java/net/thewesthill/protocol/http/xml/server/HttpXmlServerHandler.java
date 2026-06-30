@@ -2,11 +2,19 @@ package net.thewesthill.protocol.http.xml.server;
 
 import java.util.ArrayList;
 
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.util.CharsetUtil;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +45,13 @@ public class HttpXmlServerHandler extends SimpleChannelInboundHandler<HttpXmlReq
     }
   }
 
+  @Override
+  public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+    if (ctx.channel().isActive()) {
+      sendError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   private void doBusiness(Order order) {
     order.getCustomer().setLastName("Jonheey");
     ArrayList<String> midNames = new ArrayList<String>();
@@ -49,5 +64,15 @@ public class HttpXmlServerHandler extends SimpleChannelInboundHandler<HttpXmlReq
     address.setPostCode("88657");
     order.setBillTo(address);
     order.setShipTo(address);
+  }
+
+  private static void sendError(ChannelHandlerContext ctx, HttpResponseStatus status) {
+    FullHttpResponse response =
+        new DefaultFullHttpResponse(
+            HttpVersion.HTTP_1_1,
+            status,
+            Unpooled.copiedBuffer("Fail: " + status.toString() + "\r\n", CharsetUtil.UTF_8));
+    response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8");
+    ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
   }
 }

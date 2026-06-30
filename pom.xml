@@ -6,7 +6,7 @@
 
     <groupId>net.thewesthill</groupId>
     <artifactId>netty-eg</artifactId>
-    <version>0.2.0</version>
+    <version>1.0.0</version>
     <name>netty-eg</name>
     <description>netty-eg</description>
 
