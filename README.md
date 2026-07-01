@@ -31,7 +31,7 @@ Each layer addresses a shortcoming of the previous one:
 5. **Netty basics** — same time server/client on `EventLoopGroup` + `ChannelPipeline`. Boilerplate collapses.
 6. **Frame decoders** — `LineBasedFrameDecoder`, `DelimiterBasedFrameDecoder` (`$_`), `FixedLengthFrameDecoder` (20 B).
 7. **Codecs** — MessagePack, Protobuf, JBoss Marshalling, each on top of a length-prefixed frame.
-8. **Protocol** — HTTP file server (`HttpRequestDecoder` + `HttpObjectAggregator` + `HttpResponseEncoder` + `ChunkedWriteHandler`), a text-protocol file server using `DefaultFileRegion` zero-copy transfer, a JiBX XML binding round-trip (`Order` POJO ↔ XML), and a WebSocket server with the RFC 6455 upgrade handshake and text-frame echo.
+8. **Protocol** — HTTP file server (`HttpRequestDecoder` + `HttpObjectAggregator` + `HttpResponseEncoder` + `ChunkedWriteHandler`), a text-protocol file server using `DefaultFileRegion` zero-copy transfer, a JiBX XML binding round-trip (`Order` POJO ↔ XML), a WebSocket server with the RFC 6455 upgrade handshake and text-frame echo, and a UDP Chinese-proverb query server using `NioDatagramChannel` broadcast.
 
 ## Project structure
 
@@ -58,6 +58,7 @@ src/main/java/net/thewesthill/
     │   ├── fileserver/  # HTTP file server (GET, directory listing, chunked transfer)
     │   └── xml/         # JiBX XML binding: standalone round-trip + HTTP server/client
     ├── websocket/      # WebSocket server (RFC 6455 handshake + text-frame echo)
+    ├── udp/            # UDP Chinese-proverb query (NioDatagramChannel broadcast)
     └── file/            # Text-protocol file server (DefaultFileRegion zero-copy)
 ```
 
@@ -239,6 +240,30 @@ color-coded trace — amber `→` for sent, cyan `←` for received, plus close-
 
 A PlantUML sequence diagram (`sequence.puml` / `sequence.svg`) traces the bootstrap, upgrade handshake, text-frame
 echo, ping/pong, and close-handshake flow.
+
+### UDP Chinese-proverb query
+
+A connectionless request-response example over `NioDatagramChannel`. Unlike the TCP examples there is no
+`ServerBootstrap`, no boss/worker split, no `accept()`, and no codec stack — each `DatagramPacket` carries its own
+source and destination, so datagrams are self-delimiting and a single `EventLoopGroup` per peer handles both I/O and
+business logic.
+
+Both sides use `Bootstrap` + `NioDatagramChannel` with `ChannelOption.SO_BROADCAST=true`. The server binds `:8080` and
+waits on `DatagramPacket`s; the client binds `0` to obtain an ephemeral port (so the server has an address to reply
+to), then broadcasts `"Proverb dictionary query?"` to `255.255.255.255:8080`. The server validates the request
+(silently drops non-matching datagrams — UDP has no NACK), picks a quote via `ThreadLocalRandom`, and unicasts
+`"Proverb query result: <quote>"` back to `packet.sender()`. The client closes on the first matching reply; if none
+arrives within 15 s, `closeFuture().awaitUninterruptibly(15000)` returns false and the client logs `Query TimeOut.`,
+illustrating UDP's no-delivery-guarantee semantics (a lost query and a lost reply are indistinguishable without
+application-level retries or sequence numbers).
+
+- `protocol.udp.ChineseProverbServer` — server entry; binds `8080` (overridable via first arg)
+- `protocol.udp.ChineseProverbServerHandler` — request validator + quote picker; replies to sender
+- `protocol.udp.ChineseProverbClient` — client entry; broadcasts query, waits up to 15 s for a reply
+- `protocol.udp.ChineseProverbClientHandler` — prefix-matches `"Proverb query result: "` and closes on first hit
+
+A PlantUML sequence diagram (`sequence.puml`) traces the bootstrap, broadcast query, server reply, client receive, and
+timeout/exception paths.
 
 ### Text-protocol file server
 
