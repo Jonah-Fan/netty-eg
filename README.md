@@ -31,7 +31,7 @@ Each layer addresses a shortcoming of the previous one:
 5. **Netty basics** — same time server/client on `EventLoopGroup` + `ChannelPipeline`. Boilerplate collapses.
 6. **Frame decoders** — `LineBasedFrameDecoder`, `DelimiterBasedFrameDecoder` (`$_`), `FixedLengthFrameDecoder` (20 B).
 7. **Codecs** — MessagePack, Protobuf, JBoss Marshalling, each on top of a length-prefixed frame.
-8. **Protocol** — HTTP file server (`HttpRequestDecoder` + `HttpObjectAggregator` + `HttpResponseEncoder` + `ChunkedWriteHandler`), a text-protocol file server using `DefaultFileRegion` zero-copy transfer, and a JiBX XML binding round-trip (`Order` POJO ↔ XML).
+8. **Protocol** — HTTP file server (`HttpRequestDecoder` + `HttpObjectAggregator` + `HttpResponseEncoder` + `ChunkedWriteHandler`), a text-protocol file server using `DefaultFileRegion` zero-copy transfer, a JiBX XML binding round-trip (`Order` POJO ↔ XML), and a WebSocket server with the RFC 6455 upgrade handshake and text-frame echo.
 
 ## Project structure
 
@@ -57,6 +57,7 @@ src/main/java/net/thewesthill/
     ├── http/
     │   ├── fileserver/  # HTTP file server (GET, directory listing, chunked transfer)
     │   └── xml/         # JiBX XML binding: standalone round-trip + HTTP server/client
+    ├── websocket/      # WebSocket server (RFC 6455 handshake + text-frame echo)
     └── file/            # Text-protocol file server (DefaultFileRegion zero-copy)
 ```
 
@@ -212,6 +213,32 @@ keep-alive. `exceptionCaught` falls back to a `500 Internal Server Error` plain-
 - `protocol.http.xml.pojo.OrderFactory` — builds a sample `Order` instance
 - `src/main/resources/binding.xml` — JiBX binding (XML ↔ Java field mapping)
 - `src/main/resources/pojo.xsd` — XML schema for the bound POJOs
+
+### WebSocket server
+
+A WebSocket server speaking RFC 6455 over Netty's HTTP codec stack. The pipeline starts as
+`HttpServerCodec` → `HttpObjectAggregator(65536)` → `ChunkedWriteHandler` → `WebSocketServerHandler`. The handler
+accepts `Object` because the upgrade request arrives as a `FullHttpRequest` while subsequent traffic arrives as
+`WebSocketFrame`s, so `channelRead0` dispatches by type.
+
+The HTTP upgrade path validates `decoderResult().isSuccess()` and the `Upgrade: websocket` header, then builds a
+`WebSocketServerHandshaker` via `WebSocketServerHandshakerFactory("ws://localhost:8080/websocket", null, false)`. On a
+valid request `handshaker.handshake()` writes the `101 Switching Protocols` response; the handshaker internally swaps
+`HttpServerCodec` for `WebSocketFrameDecoder`/`WebSocketFrameEncoder` and drops the aggregator, so the pipeline switches
+from HTTP to frame mode. After the handshake, inbound `TextWebSocketFrame`s are echoed back with
+`"<payload> , Welcome Netty Websocket Server, Now: <date>"` appended; `PingWebSocketFrame` triggers a matching
+`PongWebSocketFrame`; `CloseWebSocketFrame` is forwarded to `handshaker.close()`. Anything else (binary, continuation,
+unsolicited pong) throws `UnsupportedOperationException`, which `exceptionCaught` turns into a channel close.
+
+A bundled `websocket-test.html` opens `ws://localhost:8080/websocket` from a browser and logs frames with a
+color-coded trace — amber `→` for sent, cyan `←` for received, plus close-code reporting for debugging the handshake.
+
+- `protocol.websocket.WebSocketServer` — server entry; binds `8080` (overridable via first arg)
+- `protocol.websocket.WebSocketServerHandler` — upgrade + frame dispatcher
+- `protocol.websocket.websocket-test.html` — single-file browser test client
+
+A PlantUML sequence diagram (`sequence.puml` / `sequence.svg`) traces the bootstrap, upgrade handshake, text-frame
+echo, ping/pong, and close-handshake flow.
 
 ### Text-protocol file server
 
