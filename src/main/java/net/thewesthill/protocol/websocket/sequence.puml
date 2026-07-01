@@ -1,0 +1,164 @@
+@startuml
+' Sequence diagram for the WebSocket round-trip example.
+' Focus: WebSocketServer + WebSocketServerHandler workflow, covering the
+' HTTP upgrade handshake and the subsequent WebSocket frame exchange.
+' The client is the bundled websocket-test.html page (browser JS WebSocket API).
+'
+' Render with a PlantUML IDE plugin, the PlantUML CLI, or
+' https://www.plantuml.com/plantuml/uml/.
+
+title WebSocket Round-Trip: Browser (websocket-test.html) <-> WebSocketServer
+
+skinparam maxMessageSize 0
+skinparam BoxPadding 6
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "User\n(browser)" as U
+box "Browser\n(websocket-test.html)" #FFF3E0
+    participant "JS\nWebSocket API" as JS
+end box
+
+box "Network (TCP 127.0.0.1:8080)" #F5F5F5
+    participant "Socket" as Net
+end box
+
+box "WebSocketServer\n(NioServerSocketChannel + ChannelPipeline)" #E8F5E9
+    participant "HttpServerCodec\n(in: HttpRequestDecoder\nout: HttpResponseEncoder)" as HC
+    participant "HttpObjectAggregator\n(65536)" as AGG
+    participant "ChunkedWriteHandler" as CHK
+    participant "WebSocketServerHandler\nSimpleChannelInboundHandler<Object>" as SH
+    participant "WebSocketServerHandshaker" as HS
+    participant "WebSocketServer" as Server
+end box
+actor "Server\nmain" as SMain
+
+== 1. Server bootstrap ==
+
+SMain -> Server : run(port)
+activate Server #B5E5C1
+Server -> Server : boss + worker =\n  MultiThreadIoEventLoopGroup(NioIoHandler.newFactory())\n  ServerBootstrap.channel(NioServerSocketChannel)\n  .handler(LoggingHandler(INFO))
+note right of Server
+  Server child pipeline (addLast order):
+    1. http-codec    : HttpServerCodec           (inbound: HttpRequestDecoder
+                                                 outbound: HttpResponseEncoder)
+    2. aggregator    : HttpObjectAggregator(65536)  (inbound)
+    3. http-chunked  : ChunkedWriteHandler       (outbound)
+    4. handler       : WebSocketServerHandler    (inbound, accepts Object)
+end note
+Server -> Net : bind(port).syncUninterruptibly()
+Net --> Server : bound; closeFuture.syncUninterruptibly() blocks
+deactivate Server
+
+== 2. Browser opens page and opens the socket ==
+
+U -> JS : open websocket-test.html, click "Connect"
+activate JS #FFE0B2
+JS -> JS : new WebSocket("ws://localhost:8080/websocket")
+JS -> Net : TCP connect (will carry HTTP GET\n  with Upgrade: websocket, Sec-WebSocket-Key, Sec-WebSocket-Version: 13)
+Net --> JS : TCP established
+
+== 3. HTTP Upgrade handshake (inbound, pipeline order) ==
+
+Net -> HC : HTTP bytes (GET /websocket,\n  Upgrade: websocket, Sec-WebSocket-Key)
+activate HC
+HC -> AGG : FullHttpRequest (decoded)
+deactivate HC
+activate AGG
+AGG -> SH : FullHttpRequest (aggregated, <= 65536)
+deactivate AGG
+activate SH
+SH -> SH : handleHttpRequest(ctx, request)\n  check decoderResult().isSuccess()\n  + headers.get("Upgrade") == "websocket"
+alt !isSuccess || !websocket
+    SH -> HC : sendHttpResponse(ctx, request,\n  new DefaultFullHttpResponse(HTTP_1_1, BAD_REQUEST))
+    HC -> Net : HTTP 400 bytes
+    note right of SH
+      HttpUtil.isKeepAlive(request) == false
+      OR status != 200  ->  addListener(CLOSE)
+    end note
+else valid upgrade request
+    SH -> HS : new WebSocketServerHandshakerFactory(\n  "ws://localhost:8080/websocket", null, false)
+    activate HS
+    HS -> HS : newHandshaker(request)\n  selects RFC6455 (or legacy) handshaker\n  based on Sec-WebSocket-Version
+    alt handshaker == null
+        HS -> HC : sendUnsupportedVersionResponse(channel)\n  HTTP 426 Upgrade Required + Sec-WebSocket-Version: 13
+        HC -> Net : HTTP 426 bytes
+    else handshaker != null
+        HS -> HS : handshake(channel, request)\n  build 101 Switching Protocols response\n  Sec-WebSocket-Accept = base64(sha1(Sec-WebSocket-Key + magic GUID))
+        note right of HS
+          Pipeline mutation by the handshaker:
+            - replaces HttpServerCodec with
+              WebSocketFrameDecoder (inbound) + WebSocketFrameEncoder (outbound)
+            - removes HttpObjectAggregator
+          Subsequent inbound messages are WebSocketFrame,
+          not FullHttpRequest -> channelRead0 dispatches by type.
+        end note
+        HS -> HC : FullHttpResponse (HTTP/1.1 101 Switching Protocols)
+        HC -> Net : HTTP 101 bytes
+        Net -> JS : onopen fires
+        JS -> U : status dot -> LINK UP (cyan glow)
+    end
+    deactivate HS
+end
+deactivate SH
+
+== 4. Text frame echo round-trip ==
+
+U -> JS : type "hello" + Enter, click "Send"
+JS -> Net : text frame (FIN=1, opcode=0x1,\n  client->server masked, payload="hello")
+Net -> SH : TextWebSocketFrame\n  (WebSocketFrameDecoder produces the frame)
+activate SH
+SH -> SH : handleWebSocketFrame(ctx, frame)\n  skip Close / skip Ping / assert TextWebSocketFrame
+SH -> SH : log.info("{} received {}", channel, "hello")
+SH -> SH : new TextWebSocketFrame(\n  "hello" + " , Welcome Netty Websocket Server, Now: " + new Date())
+SH -> Net : write(TextWebSocketFrame)\n  (server->client unmasked, via WebSocketFrameEncoder)
+Net -> JS : onmessage fires
+JS -> U : append log line:\n  <- hello , Welcome Netty Websocket Server, Now: <date>
+deactivate SH
+
+== 5. Ping / Pong ==
+
+JS -> Net : ping frame (opcode=0x9)
+Net -> SH : PingWebSocketFrame
+activate SH
+SH -> SH : handleWebSocketFrame(ctx, frame)\n  frame instanceof PingWebSocketFrame
+SH -> Net : write(new PongWebSocketFrame(frame.content().retain()))\n  (opcode=0xA, same payload)
+Net -> JS : pong frame
+deactivate SH
+
+== 6. Close handshake ==
+
+U -> JS : click "Disconnect"
+JS -> Net : close frame (opcode=0x8, code=1000)
+Net -> SH : CloseWebSocketFrame
+activate SH
+SH -> HS : handshaker.close(channel,\n  (CloseWebSocketFrame) frame.retain())
+activate HS
+HS -> Net : send close frame back (echo code)\n  + schedule channel close
+Net -> JS : onclose fires (code=1000, reason="")
+deactivate HS
+deactivate SH
+JS -> U : status -> LINK DOWN, log "closed . code=1000"
+
+== 7. Exception paths ==
+
+note over SH #FFE0E0
+  WebSocketServerHandler.exceptionCaught(ctx, cause):
+    log.error("channel exception", cause);
+    ctx.close();
+  Triggers:
+    - I/O error on the channel
+    - HttpObjectAggregator exceeds 65536 -> TooLongFrameException
+    - unsupported frame type (see below)
+end note
+
+note over SH #FFE0E0
+  Unsupported inbound frame type
+  (BinaryWebSocketFrame / ContinuationWebSocketFrame / PongWebSocketFrame
+   when not from a ping echo):
+    handleWebSocketFrame throws
+    UnsupportedOperationException("%s frame types not supported")
+    -> exceptionCaught -> ctx.close()
+end note
+
+@enduml
