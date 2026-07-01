@@ -1,0 +1,133 @@
+@startuml
+' Sequence diagram for the UDP Chinese proverb example.
+' Focus: ChineseProverbClient <-> ChineseProverbServer workflow over
+' connectionless UDP. There is no accept, no boss/worker split, no codec
+' stack, and no handshake — each DatagramPacket carries its own src/dst.
+'
+' Render with a PlantUML IDE plugin, the PlantUML CLI, or
+' https://www.plantuml.com/plantuml/uml/.
+
+title UDP Round-Trip: ChineseProverbClient <-> ChineseProverbServer (broadcast)
+
+skinparam maxMessageSize 0
+skinparam BoxPadding 6
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "Client\nmain" as CMain
+box "ChineseProverbClient\n(NioDatagramChannel, bound to ephemeral port)" #E7F3FF
+    participant "ChineseProverbClient" as Client
+    participant "ChineseProverbClientHandler\nSimpleChannelInboundHandler<DatagramPacket>" as CH
+end box
+
+box "Network (UDP broadcast 255.255.255.255:8080)" #F5F5F5
+    participant "Datagram\n(socket)" as Net
+end box
+
+box "ChineseProverbServer\n(NioDatagramChannel, bound to :8080)" #E8F5E9
+    participant "ChineseProverbServerHandler\nSimpleChannelInboundHandler<DatagramPacket>" as SH
+    participant "ChineseProverbServer" as Server
+end box
+actor "Server\nmain" as SMain
+
+== 1. Server bootstrap (connectionless — no accept, no boss/worker) ==
+
+SMain -> Server : run(port)
+activate Server #B5E5C1
+Server -> Server : group =\n  MultiThreadIoEventLoopGroup(NioIoHandler.newFactory())\n  Bootstrap.channel(NioDatagramChannel)\n  .option(SO_BROADCAST, true)
+note right of Server
+  UDP server pipeline (addLast order):
+    1. handler : ChineseProverbServerHandler  (inbound, DatagramPacket)
+  No codecs, no frame decoders — datagrams are self-delimiting.
+  A single EventLoopGroup handles both I/O and business logic;
+  NioDatagramChannel has no ServerSocketChannel counterpart
+  because UDP has no accept() step.
+end note
+Server -> Net : bind(InetSocketAddress(port)).syncUninterruptibly()
+Net --> Server : bound; channel bound to UDP :8080\n  closeFuture.awaitUninterruptibly() blocks
+deactivate Server
+
+== 2. Client bootstrap (bind ephemeral port to receive replies) ==
+
+CMain -> Client : run(port)
+activate Client #A6D8F0
+Client -> Client : group =\n  MultiThreadIoEventLoopGroup(NioIoHandler.newFactory())\n  Bootstrap.channel(NioDatagramChannel)\n  .option(SO_BROADCAST, true)
+note right of Client
+  UDP client pipeline (addLast order):
+    1. handler : ChineseProverbClientHandler  (inbound, DatagramPacket)
+  Client is also connectionless: bind(0) asks the OS for an
+  ephemeral port so the server has an address to reply to.
+  No connect() — writeAndFlush supplies the destination per packet.
+end note
+Client -> Net : bind(0).syncUninterruptibly()  // OS assigns ephemeral port
+Net --> Client : channel active on ephemeral port P
+deactivate Client
+
+== 3. Client -> Server : broadcast query (single packet, no handshake) ==
+
+Client -> Client : new DatagramPacket(\n  Unpooled.copiedBuffer("Proverb dictionary query?", UTF_8),\n  new InetSocketAddress("255.255.255.255", port))
+Client -> Net : writeAndFlush(datagramPacket).syncUninterruptibly()\n  // destination = broadcast 255.255.255.255 : 8080
+Net -> Net : UDP broadcast delivered to every host\n  on the subnet whose socket is bound to :8080
+Net -> SH : DatagramPacket\n  content = "Proverb dictionary query?"\n  sender = client ephemeral (hostIP:P)
+
+== 4. Server receives and replies ==
+
+activate SH
+SH -> SH : channelRead0(ctx, packet)\n  req = packet.content().toString(UTF_8)\n  log.info("{}", req)
+alt !"Proverb dictionary query?".equals(req)
+    SH -> SH : return  // silently drop\n  no reply sent, no NACK (UDP)
+else req == "Proverb dictionary query?"
+    SH -> SH : nextQuote()\n  quoteId = ThreadLocalRandom.current().nextInt(DICTIONARY.length)\n  return DICTIONARY[quoteId]
+    SH -> SH : new DatagramPacket(\n    Unpooled.copiedBuffer("Proverb query result: " + quote, UTF_8),\n    packet.sender())  // reply addressed to client's (hostIP:P)
+    SH -> Net : ctx.writeAndFlush(replyDatagram)\n  // unicast back to sender, not broadcast
+end
+deactivate SH
+
+== 5. Client receives reply and closes ==
+
+Net -> CH : DatagramPacket\n  content = "Proverb query result: <quote>"\n  sender = server (hostIP:8080)
+activate CH
+CH -> CH : channelRead0(ctx, packet)\n  response = packet.content().toString(UTF_8)
+alt !response.startsWith("Proverb query result: ")
+    CH -> CH : ignore  // not our reply (broadcasts may carry other traffic)
+else response.startsWith("Proverb query result: ")
+    CH -> CH : log.info("{}", response)
+    CH -> CH : ctx.close()  // triggers client channel closeFuture
+end
+deactivate CH
+Client -> Net : channel closed
+Net --> Client : closeFuture returns\n  // awaitUninterruptibly(15000) returns true (no timeout)
+Client -> Net : finally: group.shutdownGracefully().syncUninterruptibly()
+Server -> Net : finally: group.shutdownGracefully().syncUninterruptibly()  // on Ctrl-C / SIGINT
+
+== 6. Timeout path (no reply within 15 s) ==
+
+note over Client #FFF3E0
+  If no matching reply arrives within 15 s
+  (packet lost, server down, or wrong subnet):
+    ch.closeFuture().awaitUninterruptibly(15000) returns false
+    -> log.info("Query TimeOut.")
+    -> finally: group.shutdownGracefully().syncUninterruptibly()
+  Note: UDP gives no delivery guarantee. A lost query or lost reply
+  is indistinguishable from a slow one without application-level
+  retries or sequence numbers.
+end note
+
+== 7. Exception paths ==
+
+note over SH #FFE0E0
+  ChineseProverbServerHandler.exceptionCaught(ctx, cause):
+    log.info("channel exception", cause);
+    ctx.close();
+  Closes the datagram channel — the server stops receiving on :8080.
+end note
+
+note over CH #FFE0E0
+  ChineseProverbClientHandler.exceptionCaught(ctx, cause):
+    log.error("channel exception", cause);
+    ctx.close();
+  Closes the client channel — closeFuture returns,
+  awaitUninterruptibly(15000) unblocks immediately.
+end note
+
+@enduml
