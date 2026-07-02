@@ -1,0 +1,266 @@
+@startuml
+' Sequence diagram for the Netty private-protocol round-trip example.
+' Focus: NettyClient + NettyServer pipeline workflow, covering the
+'   - LengthFieldBasedFrameDecoder + Marshalling decode of the Header/attachment/body
+'   - login handshake (LOGIN_REQ <-> LOGIN_RESP, server-side whitelist + dedup)
+'   - heartbeat scheduled task on the client (every 5s) and server reply
+'   - ReadTimeoutHandler (50s) -> exceptionCaught -> reconnect
+' The wire format is the NettyMessage with Header (crcCode, length, sessionId,
+' type, priority, attachment Map<String,Object>, body) marshalled with
+' org.jboss.marshalling "serial" v5.
+'
+' Render with a PlantUML IDE plugin, the PlantUML CLI, or
+' https://www.plantuml.com/plantuml/uml/.
+
+title Netty Private Protocol Round-Trip: NettyClient <-> NettyServer (login + heartbeat)
+
+skinparam maxMessageSize 0
+skinparam BoxPadding 6
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "User\n(JVM)" as U
+
+box "NettyClient\n(NioSocketChannel + ChannelPipeline)" #E3F2FD
+    participant "NettyClient\nmain" as ClientMain
+    participant "NettyMessageDecoder\nLengthFieldBasedFrameDecoder\n(maxFrame=1MB,\n lengthFieldOffset=4,\n lengthFieldLength=4,\n lengthAdjustment=-8,\n initialBytesToStrip=0)\n+ MarshallingDecoder" as CDec
+    participant "NettyMessageEncoder\nMessageToMessageEncoder\n+ MarshallingEncoder" as CEnc
+    participant "ReadTimeoutHandler\n(50s)" as CRTimeout
+    participant "LoginAuthReqHandler\nChannelInboundHandlerAdapter" as CLogin
+    participant "HeartBeatReqHandler\nChannelInboundHandlerAdapter\n+ ScheduledFuture(5s)" as CHeart
+end box
+
+box "Network (TCP 127.0.0.1:8080)" #F5F5F5
+    participant "Socket" as Net
+end box
+
+box "NettyServer\n(NioServerSocketChannel + ChannelPipeline)" #E8F5E9
+    participant "NettyServer\nmain" as ServerMain
+    participant "NettyMessageDecoder\n(same params)\n+ MarshallingDecoder" as SDec
+    participant "NettyMessageEncoder\n+ MarshallingEncoder" as SEnc
+    participant "ReadTimeoutHandler\n(50s)" as SRTimeout
+    participant "LoginAuthRespHandler\nChannelInboundHandlerAdapter\n(nodeCheck Map, whiteList)" as SLogin
+    participant "HeartBeatRespHandler\nChannelInboundHandlerAdapter" as SHeart
+end box
+
+== 1. Server bootstrap ==
+
+U -> ServerMain : main()
+activate ServerMain #B5E5C1
+ServerMain -> ServerMain : bind()\n  boss + worker =\n  MultiThreadIoEventLoopGroup(NioIoHandler.newFactory())\n  ServerBootstrap.channel(NioServerSocketChannel)\n  .option(SO_BACKLOG, 100)\n  .handler(LoggingHandler(INFO))
+note right of ServerMain
+  Server child pipeline (addLast order):
+    1. NettyMessageDecoder(1MB, 4, 4, -8, 0)
+    2. NettyMessageEncoder
+    3. ReadTimeoutHandler(50)        (inbound, fires ReadTimeoutException)
+    4. LoginAuthRespHandler           (inbound, accepts LOGIN_REQ)
+    5. HeartBeatRespHandler           (inbound, accepts HEARTBEAT_REQ)
+end note
+ServerMain -> Net : bind(127.0.0.1, 8080).sync()
+Net --> ServerMain : bound; log "Netty server start ok"
+deactivate ServerMain
+
+== 2. Client connect + pipeline init ==
+
+U -> ClientMain : main()
+activate ClientMain #B5E5C1
+ClientMain -> ClientMain : connect(8080, "127.0.0.1")\n  group = MultiThreadIoEventLoopGroup(NioIoHandler.newFactory())\n  Bootstrap.channel(NioSocketChannel)\n  .option(TCP_NODELAY, true)
+note right of ClientMain
+  Client pipeline (addLast order):
+    1. NettyMessageDecoder(1MB, 4, 4, -8, 0)
+    2. NettyMessageEncoder
+    3. ReadTimeoutHandler(50)
+    4. LoginAuthReqHandler    (channelActive -> send LOGIN_REQ)
+    5. HeartBeatReqHandler    (on LOGIN_RESP -> schedule heartbeat)
+end note
+ClientMain -> Net : connect(host, port).sync()
+Net --> ClientMain : connected; closeFuture.sync() blocks
+deactivate ClientMain
+
+== 3. Login handshake (inbound channelActive triggers LOGIN_REQ) ==
+
+ClientMain -> CLogin : channelActive(ctx)\n(channel becomes writable)
+activate CLogin #FFE0B2
+CLogin -> CLogin : buildLoginReq()\n  NettyMessage[header.type=LOGIN_REQ(3), body=null]
+CLogin -> CEnc : writeAndFlush(NettyMessage)
+activate CEnc
+CEnc -> CEnc : encode(ctx, msg, out)\n  if (msg==null || header==null) throw\n  sendBuf = Unpooled.buffer()\n  writeInt(crcCode 0xabef0101)\n  writeInt(length placeholder 0)\n  writeLong(sessionId)\n  writeByte(type)  writeByte(priority)\n  writeInt(attachment.size)\n  for each entry: writeInt(keyLen) + writeBytes(UTF-8 key)\n               + MarshallingEncoder.encode(value,\n                  4-byte length placeholder + marshalled bytes)\n  body != null -> MarshallingEncoder.encode(body)\n  body == null -> writeInt(0)\n  sendBuf.setInt(4, sendBuf.readableBytes())   backpatch length
+CEnc -> Net : ByteBuf (TCP bytes)
+deactivate CEnc
+deactivate CLogin
+
+Net -> SDec : bytes (frame length prefixed)
+activate SDec
+SDec -> SDec : super.decode(ctx, in)\n  LengthFieldBasedFrameDecoder reads length @offset 4,\n  adjusts by -8 (length includes crcCode + lengthField),\n  returns the full frame (no strip)
+SDec -> SDec : read frame -> Header\n  crcCode=readInt, length=readInt,\n  sessionId=readLong, type=readByte, priority=readByte\n  size=readInt; for i in size:\n    keyLen=readInt, key=readBytes(UTF-8),\n    attachment.put(key, MarshallingDecoder.decode(frame))\n  if readable>4: body=MarshallingDecoder.decode(frame)\n  else body=null
+SDec -> SRTimeout : channelRead(NettyMessage)
+deactivate SDec
+activate SRTimeout
+SRTimeout -> SLogin : channelRead(NettyMessage)\n  (ReadTimeoutHandler passes through unless timer fires)
+deactivate SRTimeout
+activate SLogin #C8E6C9
+SLogin -> SLogin : type == LOGIN_REQ\n  nodeIndex = channel.remoteAddress().toString()
+alt node already in nodeCheck
+    SLogin -> SLogin : buildResponse(-1)   duplicate login
+else new node
+    SLogin -> SLogin : ip = ((InetSocketAddress) remoteAddress).getAddress().getHostAddress()\n    isOk = whiteList.contains(ip)   whitelist [127.0.0.1, 192.168.1.104]
+    alt isOk
+        SLogin -> SLogin : nodeCheck.put(nodeIndex, true)\n        buildResponse((byte) 0)
+    else !isOk
+        SLogin -> SLogin : buildResponse(-1)   not whitelisted
+    end
+end
+SLogin -> SEnc : writeAndFlush(loginResp)\n  NettyMessage[header.type=LOGIN_RESP(4), body=byte result]
+activate SEnc
+SEnc -> Net : ByteBuf (TCP bytes)
+deactivate SEnc
+deactivate SLogin
+
+Net -> CDec : bytes
+activate CDec
+CDec -> CDec : super.decode + read Header + attachment + body\n  (same path as server)
+CDec -> CRTimeout : channelRead(NettyMessage)
+deactivate CDec
+activate CRTimeout
+CRTimeout -> CLogin : channelRead(NettyMessage)
+deactivate CRTimeout
+activate CLogin #FFE0B2
+CLogin -> CLogin : type == LOGIN_RESP\n  loginResult = (byte) message.getBody()
+alt loginResult != 0
+    CLogin -> Net : ctx.close()   login refused
+else loginResult == 0
+    CLogin -> CLogin : log.info("Login is ok", message)\n  ctx.fireChannelRead(msg)   pass downstream
+    CLogin -> CHeart : channelRead(NettyMessage)
+    activate CHeart #FFE0B2
+    CHeart -> CHeart : type == LOGIN_RESP\n  heartBeat = ctx.executor().scheduleAtFixedRate(\n      HeartBeatTask(ctx), 0, 5, SECONDS)\n  (passes non-HEARTBEAT_RESP messages via fireChannelRead)
+    deactivate CHeart
+end
+deactivate CLogin
+
+== 4. Heartbeat loop (every 5s, client -> server -> client) ==
+
+loop every 5s while channel is open
+    CHeart -> CHeart : HeartBeatTask.run()\n  buildHeartBeat() -> NettyMessage[\n      header.type=HEARTBEAT_REQ(5), body=null]
+    activate CHeart #FFE0B2
+    CHeart -> CEnc : writeAndFlush(heartBeat)
+    activate CEnc
+    CEnc -> CEnc : encode (header only + body=0 sentinel)\n  attachment empty -> writeInt(0); body null -> writeInt(0)
+    CEnc -> Net : ByteBuf
+    deactivate CEnc
+
+    Net -> SDec : bytes
+    activate SDec
+    SDec -> SDec : decode -> NettyMessage
+    SDec -> SRTimeout : channelRead
+    deactivate SDec
+    activate SRTimeout
+    SRTimeout -> SHeart : channelRead(NettyMessage)
+    deactivate SRTimeout
+    activate SHeart #C8E6C9
+    SHeart -> SHeart : type == HEARTBEAT_REQ\n  log "Receive client heart beat message"\n  buildHeartBeat() -> NettyMessage[\n      header.type=HEARTBEAT_RESP(6), body=null]
+    SHeart -> SEnc : writeAndFlush(heartBeat)
+    activate SEnc
+    SEnc -> Net : ByteBuf
+    deactivate SEnc
+    deactivate SHeart
+
+    Net -> CDec : bytes
+    activate CDec
+    CDec -> CDec : decode -> NettyMessage
+    CDec -> CRTimeout : channelRead
+    deactivate CDec
+    activate CRTimeout
+    CRTimeout -> CLogin : channelRead(NettyMessage)\n  (LoginAuthReqHandler: not LOGIN_RESP -> fireChannelRead)
+    deactivate CRTimeout
+    activate CLogin #FFE0B2
+    CLogin -> CHeart : fireChannelRead(msg)
+    deactivate CLogin
+    activate CHeart #FFE0B2
+    CHeart -> CHeart : type == HEARTBEAT_RESP\n  log "Client receive server heart beat message"
+    deactivate CHeart
+end
+
+== 5. ReadTimeoutHandler fires (50s of silence) ==
+
+alt server-side silence > 50s (client ReadTimeoutHandler fires)
+    CRTimeout -> CLogin : exceptionCaught(ctx,\n  ReadTimeoutException)
+    activate CLogin #FFE0B2
+    CLogin -> CLogin : exceptionCaught ->\n  ctx.fireExceptionCaught(cause)   pass to next handler
+    note right of CHeart #FFE0E0
+      HeartBeatReqHandler.exceptionCaught:
+        heartBeat.cancel(true);
+        heartBeat = null;
+        ctx.fireExceptionCaught(cause);
+      ScheduledFuture is cancelled so the 5s task stops.
+    end note
+    CLogin -> CHeart : fireExceptionCaught(cause)
+    deactivate CLogin
+    activate CHeart #FFE0B2
+    CHeart -> CHeart : heartBeat.cancel(true); heartBeat=null;\n  ctx.fireExceptionCaught(cause)
+    deactivate CHeart
+end
+
+alt server-side ReadTimeoutHandler fires (>50s no inbound)
+    SRTimeout -> SLogin : exceptionCaught(ctx, ReadTimeoutException)
+    activate SLogin #FFE0E0
+    SLogin -> SLogin : nodeCheck.remove(remoteAddress)\n  ctx.close(); ctx.fireExceptionCaught(cause)
+    deactivate SLogin
+end
+
+== 6. Channel close + client reconnect ==
+
+Net -> ClientMain : closeFuture.sync() returns
+activate ClientMain #B5E5C1
+ClientMain -> ClientMain : finally block\n  executor.execute(runnable):\n    sleep(5s) -> connect(8080, "127.0.0.1")   re-bootstrap + reconnect
+note right of ClientMain #FFF9C4
+  Reconnect path:
+    - new NioSocketChannel + fresh pipeline
+    - channelActive -> LoginAuthReqHandler sends LOGIN_REQ again
+    - On LOGIN_RESP(0) -> HeartBeatReqHandler schedules a new 5s task
+    - Node-check dedup on server uses remoteAddress string; a reconnected
+      socket from the same host:port reuses the entry if previously cleared
+      on exceptionCaught, otherwise LoginAuthRespHandler returns -1.
+end note
+deactivate ClientMain
+
+== 7. Exception paths ==
+
+note over SLogin #FFE0E0
+  LoginAuthRespHandler.exceptionCaught(ctx, cause):
+    nodeCheck.remove(ctx.channel().remoteAddress().toString());
+    ctx.close();
+    ctx.fireExceptionCaught(cause);
+  Triggers:
+    - ReadTimeoutException after 50s of silence on the server side
+    - I/O error on the channel
+    - decoder throws (frame > 1MB -> TooLongFrameException,
+      or marshalling failure / crcCode mismatch reading)
+end note
+
+note over CLogin #FFE0E0
+  LoginAuthReqHandler.exceptionCaught(ctx, cause):
+    ctx.fireExceptionCaught(cause);
+  Login refused (loginResult != 0):
+    ctx.close();   channel tears down, triggers reconnect in finally
+end note
+
+note over CDec, SDec #FFE0E0
+  Wire format recap (NettyMessageEncoder):
+    [crcCode:int] [length:int] [sessionId:long] [type:byte]
+    [priority:byte] [attachment.size:int]
+    for each attachment:
+      [keyLen:int] [keyBytes(UTF-8)] [marshalledValue with 4-byte length prefix]
+    body != null -> [marshalledBody with 4-byte length prefix]
+    body == null -> [0:int]   4-byte zero sentinel, NOT a marshalled 0
+  length field is backpatched via sendBuf.setInt(4, readableBytes())
+  to cover crcCode + length + sessionId + type + priority + attachments + body.
+end note
+
+note over CHeart #FFF9C4
+  Heartbeat is one-way request with response; if the server's
+  HeartBeatRespHandler is removed or mis-wired the client still logs
+  "send heart beat" every 5s but never sees HEARTBEAT_RESP, so
+  ReadTimeoutHandler(50s) eventually fires -> reconnect.
+end note
+
+@enduml
