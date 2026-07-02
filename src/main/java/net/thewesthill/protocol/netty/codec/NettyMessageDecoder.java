@@ -49,7 +49,7 @@ public class NettyMessageDecoder extends LengthFieldBasedFrameDecoder {
       header.setType(frame.readByte());
       header.setPriority(frame.readByte());
 
-      int size = frame.readByte() & 0xff;
+      int size = frame.readInt();
       if (size > 0) {
         Map<String, Object> attch = new HashMap<>(size);
         for (int i = 0; i < size; i++) {

@@ -31,7 +31,7 @@ public class NettyMessageEncoder extends MessageToMessageEncoder<NettyMessage> {
     sendBuf.writeLong(msg.getHeader().getSessionId());
     sendBuf.writeByte(msg.getHeader().getType());
     sendBuf.writeByte(msg.getHeader().getPriority());
-    sendBuf.writeByte(msg.getHeader().getAttachment().size());
+    sendBuf.writeInt(msg.getHeader().getAttachment().size());
     String key = null;
     byte[] keyArray = null;
     Object value = null;
