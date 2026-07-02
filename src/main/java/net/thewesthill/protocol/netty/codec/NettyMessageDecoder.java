@@ -29,7 +29,12 @@ public class NettyMessageDecoder extends LengthFieldBasedFrameDecoder {
       int lengthAdjustment,
       int initialBytesToStrip)
       throws IOException {
-    super(maxFrameLength, lengthFieldOffset, lengthFieldLength, lengthAdjustment, initialBytesToStrip);
+    super(
+        maxFrameLength,
+        lengthFieldOffset,
+        lengthFieldLength,
+        lengthAdjustment,
+        initialBytesToStrip);
     marshallingDecoder = new MarshallingDecoder();
   }
 
