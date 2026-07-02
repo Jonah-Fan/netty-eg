@@ -10,7 +10,7 @@ import org.jboss.marshalling.OutputStreamByteOutput;
 public class MarshallingEncoder {
 
   private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
-  Marshaller marshaller;
+  private final Marshaller marshaller;
 
   public MarshallingEncoder() throws IOException {
     marshaller = MarshallingCodecFactory.buildMarshalling();

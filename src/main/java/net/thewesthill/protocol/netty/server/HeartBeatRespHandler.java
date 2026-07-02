@@ -1,0 +1,34 @@
+package net.thewesthill.protocol.netty.server;
+
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import lombok.extern.slf4j.Slf4j;
+
+import net.thewesthill.protocol.netty.MessageType;
+import net.thewesthill.protocol.netty.struct.Header;
+import net.thewesthill.protocol.netty.struct.NettyMessage;
+
+@Slf4j
+public class HeartBeatRespHandler extends ChannelInboundHandlerAdapter {
+
+  @Override
+  public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    NettyMessage message = (NettyMessage) msg;
+    if (message.getHeader() != null
+        && message.getHeader().getType() == MessageType.HEARTBEAT_REQ.value()) {
+      log.info("Receive client heart beat message : ---> {}", message);
+      NettyMessage heartBeat = buildHeartBeat();
+      ctx.writeAndFlush(heartBeat);
+    } else {
+      ctx.fireChannelRead(msg);
+    }
+  }
+
+  private NettyMessage buildHeartBeat() {
+    NettyMessage message = new NettyMessage();
+    Header header = new Header();
+    header.setType(MessageType.HEARTBEAT_RESP.value());
+    message.setHeader(header);
+    return message;
+  }
+}

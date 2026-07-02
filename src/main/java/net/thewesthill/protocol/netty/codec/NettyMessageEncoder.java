@@ -1,5 +1,6 @@
 package net.thewesthill.protocol.netty.codec;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -13,6 +14,10 @@ import net.thewesthill.protocol.netty.struct.NettyMessage;
 public class NettyMessageEncoder extends MessageToMessageEncoder<NettyMessage> {
 
   private MarshallingEncoder marshallingEncoder;
+
+  public NettyMessageEncoder() throws IOException {
+    marshallingEncoder = new MarshallingEncoder();
+  }
 
   @Override
   protected void encode(ChannelHandlerContext ctx, NettyMessage msg, List<Object> out)
@@ -46,7 +51,8 @@ public class NettyMessageEncoder extends MessageToMessageEncoder<NettyMessage> {
       marshallingEncoder.encode(msg.getBody(), sendBuf);
     } else {
       sendBuf.writeInt(0);
-      sendBuf.setInt(4, sendBuf.readableBytes());
     }
+    sendBuf.setInt(4, sendBuf.readableBytes());
+    out.add(sendBuf);
   }
 }
